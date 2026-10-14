@@ -1,3 +1,5 @@
+import { lookup } from "node:dns/promises";
+import { BlockList } from "node:net";
 import { posix } from "node:path";
 import SftpClient from "ssh2-sftp-client";
 
@@ -16,6 +18,45 @@ export interface SftpTestResult {
 
 const READY_TIMEOUT_MS = 10_000;
 
+const blocked = new BlockList();
+for (const [net, bits] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
+] as const) {
+  blocked.addSubnet(net, bits, "ipv4");
+}
+for (const [net, bits] of [
+  ["::", 128],
+  ["::1", 128],
+  ["fc00::", 7],
+  ["fe80::", 10],
+  ["ff00::", 8],
+] as const) {
+  blocked.addSubnet(net, bits, "ipv6");
+}
+
+/** Resolves the host once and returns the IP to connect to, so DNS can't change between check and use. */
+async function resolvePublicAddress(host: string): Promise<string> {
+  const addresses = await lookup(host, { all: true, order: "ipv4first" });
+  if (process.env.ALLOW_PRIVATE_SFTP_HOSTS !== "true") {
+    for (const { address, family } of addresses) {
+      if (blocked.check(address, family === 6 ? "ipv6" : "ipv4")) {
+        throw new Error("Host resolves to a private or reserved address");
+      }
+    }
+  }
+  return addresses[0].address;
+}
+
 async function withClient<T>(
   config: SftpConfig,
   fn: (client: SftpClient) => Promise<T>,
@@ -23,7 +64,7 @@ async function withClient<T>(
   const client = new SftpClient();
   try {
     await client.connect({
-      host: config.host,
+      host: await resolvePublicAddress(config.host),
       port: config.port,
       username: config.username,
       password: config.password,
