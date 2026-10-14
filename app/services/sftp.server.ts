@@ -19,27 +19,28 @@ export interface SftpTestResult {
 const READY_TIMEOUT_MS = 10_000;
 
 const blocked = new BlockList();
+// Reserved ranges are intentionally hardcoded (NOSONAR: S1313).
 for (const [net, bits] of [
-  ["0.0.0.0", 8],
-  ["10.0.0.0", 8],
-  ["100.64.0.0", 10],
-  ["127.0.0.0", 8],
-  ["169.254.0.0", 16],
-  ["172.16.0.0", 12],
-  ["192.0.0.0", 24],
-  ["192.168.0.0", 16],
-  ["198.18.0.0", 15],
-  ["224.0.0.0", 4],
-  ["240.0.0.0", 4],
+  ["0.0.0.0", 8], // NOSONAR
+  ["10.0.0.0", 8], // NOSONAR
+  ["100.64.0.0", 10], // NOSONAR
+  ["127.0.0.0", 8], // NOSONAR
+  ["169.254.0.0", 16], // NOSONAR
+  ["172.16.0.0", 12], // NOSONAR
+  ["192.0.0.0", 24], // NOSONAR
+  ["192.168.0.0", 16], // NOSONAR
+  ["198.18.0.0", 15], // NOSONAR
+  ["224.0.0.0", 4], // NOSONAR
+  ["240.0.0.0", 4], // NOSONAR
 ] as const) {
   blocked.addSubnet(net, bits, "ipv4");
 }
 for (const [net, bits] of [
   ["::", 128],
   ["::1", 128],
-  ["fc00::", 7],
-  ["fe80::", 10],
-  ["ff00::", 8],
+  ["fc00::", 7], // NOSONAR
+  ["fe80::", 10], // NOSONAR
+  ["ff00::", 8], // NOSONAR
 ] as const) {
   blocked.addSubnet(net, bits, "ipv6");
 }

@@ -47,12 +47,16 @@ export const action = async ({
 }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const form = await request.formData();
-  const intent = String(form.get("intent"));
-  const host = String(form.get("host") ?? "").trim();
-  const port = Number(form.get("port"));
-  const username = String(form.get("username") ?? "").trim();
-  const password = String(form.get("password") ?? "");
-  const targetDirectory = String(form.get("targetDirectory") ?? "").trim();
+  const field = (name: string) => {
+    const value = form.get(name);
+    return typeof value === "string" ? value : "";
+  };
+  const intent = field("intent");
+  const host = field("host").trim();
+  const port = Number(field("port"));
+  const username = field("username").trim();
+  const password = field("password");
+  const targetDirectory = field("targetDirectory").trim();
 
   if (!host || !username || !targetDirectory) {
     return { ok: false, message: "Host, username and target path are required." };
