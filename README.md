@@ -57,6 +57,18 @@ Note that `npm run dev` runs `prisma migrate deploy` against whatever `DATABASE_
 | `npm run build` | Production build |
 | `npx prisma migrate dev --name <name>` | Create and apply a migration locally |
 
+### Developer scripts
+
+Bash helpers in `scripts/`. The database scripts refuse to run unless `DATABASE_URL` points at localhost.
+
+| Command | What it does |
+|---|---|
+| `npm run dev:up` | Start Colima if needed, Postgres and the test SFTP server, then apply migrations. Idempotent. Set `SFTP_TEST_PASSWORD` the first time to create the SFTP container |
+| `npm run dev:down` | Stop the containers (data is kept); `scripts/dev-down.sh --colima` also stops Colima |
+| `scripts/sftp.sh ls\|latest\|cat <file>\|clear` | Inspect or empty the test SFTP upload folder |
+| `scripts/db.sh psql\|backup\|restore <file>\|reset` | Open psql, back up to `backups/`, restore, or drop and recreate the local database |
+| `npm run check` | Typecheck, lint and test (`scripts/check.sh --build` also builds) |
+
 ## Environment variables
 
 | Variable | Where | Purpose |

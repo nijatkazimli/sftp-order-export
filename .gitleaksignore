@@ -1,0 +1,2 @@
+# Reviewed false positive: passes a shell variable to docker, not a literal secret.
+scripts/lib.sh:generic-password:62
