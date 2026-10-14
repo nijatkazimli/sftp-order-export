@@ -18,6 +18,8 @@ Order data is never stored by the app. Only the SFTP configuration and a small e
 - Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename).
 - Export history with failure reasons.
 - SSRF protection: hosts that resolve to private, loopback or link-local addresses are refused.
+- SSH host key pinning (trust on first use): the first key a server presents is remembered, and a changed key is refused until the settings are saved again. A saved password or key is only reused for the same host, port and username.
+- Shopify access tokens are encrypted at rest, and credentials are bound to their shop so they can't be moved between rows.
 - Mandatory Shopify compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`).
 
 ## Tech stack
@@ -83,8 +85,9 @@ Tracked in `.githooks/`; install them once per clone with `npm run hooks:install
 | Variable | Where | Purpose |
 |---|---|---|
 | `DATABASE_URL` | all | PostgreSQL connection string |
-| `ENCRYPTION_KEY` | all | 64 hex characters (`openssl rand -hex 32`); encrypts SFTP credentials |
-| `ALLOW_PRIVATE_SFTP_HOSTS` | development only | `true` allows `localhost` and private SFTP hosts |
+| `ENCRYPTION_KEY` | all | 64 hex characters (`openssl rand -hex 32`); encrypts SFTP credentials and Shopify tokens |
+| `ENCRYPTION_KEY_PREVIOUS` | during key rotation | The old key, so existing data stays readable until it is re-saved |
+| `ALLOW_PRIVATE_SFTP_HOSTS` | development only | `true` allows `localhost` and private SFTP hosts; ignored when `NODE_ENV=production` |
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` | production | Provided by the Shopify CLI during development |
 
 ## Environments and protecting data
@@ -105,7 +108,7 @@ Some SFTP servers only accept connections from allowlisted IP addresses. Check w
 
 ## Data handled
 
-Order name, email, shipping address, phone and line items are read from the webhook payload, written to the CSV and sent to the merchant's SFTP server. They are not persisted. The app requires protected customer data access (name, email, phone, address) in the Partner Dashboard.
+Order name, email, shipping address, phone and line items are read from the webhook payload, written to the CSV and sent to the merchant's SFTP server. They are not persisted. The app requires protected customer data access (name, email, phone, address) in the Partner Dashboard and only requests the `read_orders` scope.
 
 ## Project layout
 
