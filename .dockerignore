@@ -1,3 +1,19 @@
 .cache
 build
 node_modules
+
+# Never bake secrets, local data or history into an image.
+.git
+.env
+.env.*
+backups
+*.dump
+*.sqlite
+*.sqlite-journal
+
+# Not needed at runtime.
+.githooks
+.cursor
+.gemini
+.mcp.json
+scripts

@@ -16,7 +16,7 @@ services:
       - key: SHOPIFY_APP_URL
         sync: false
       - key: SCOPES
-        value: write_products,write_metaobjects,write_metaobject_definitions,read_orders
+        value: read_orders
       # 32 random bytes as 64 hex chars: openssl rand -hex 32
       - key: ENCRYPTION_KEY
         sync: false
