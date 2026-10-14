@@ -34,6 +34,8 @@ const resolvesTo = (address: string, family = 4) =>
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Don't let a developer's shell environment weaken the SSRF tests.
+  vi.stubEnv("ALLOW_PRIVATE_SFTP_HOSTS", "");
   mocks.connect.mockResolvedValue(undefined);
   mocks.exists.mockResolvedValue("d");
   mocks.put.mockResolvedValue(undefined);
