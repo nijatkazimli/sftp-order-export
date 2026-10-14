@@ -86,6 +86,22 @@ describe("SSRF guard", () => {
 });
 
 describe("testSftpConnection", () => {
+  it("authenticates with a private key and passphrase when given", async () => {
+    resolvesTo("93.184.216.34");
+    await testSftpConnection({
+      ...config,
+      password: undefined,
+      privateKey: "KEY",
+      passphrase: "pp",
+    });
+    expect(mocks.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        privateKey: "KEY",
+        passphrase: "pp",
+        password: undefined,
+      }),
+    );
+  });
   it("fails when the target directory is missing", async () => {
     resolvesTo("93.184.216.34");
     mocks.exists.mockResolvedValue(false);

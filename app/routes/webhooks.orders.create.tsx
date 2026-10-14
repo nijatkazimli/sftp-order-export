@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
-import { decrypt } from "../utils/crypto.server";
+import { toSftpConfig } from "../services/credentials.server";
 import { uploadCsvToSftp } from "../services/sftp.server";
 import { orderToCsv, type ShopifyOrderPayload } from "../services/orderCsv.server";
 
@@ -23,16 +23,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     await uploadCsvToSftp(
-      {
-        host: config.sftpHost,
-        port: config.sftpPort,
-        username: config.sftpUsername,
-        password: decrypt({
-          encrypted: config.sftpPasswordEncrypted,
-          iv: config.sftpIv,
-        }),
-        targetDirectory: config.targetDirectory,
-      },
+      toSftpConfig(config),
       `${filename}.csv`,
       orderToCsv(order),
     );

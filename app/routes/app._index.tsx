@@ -9,8 +9,16 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
-import { decrypt, encrypt } from "../utils/crypto.server";
+import {
+  credentialToAuth,
+  decryptCredential,
+  encryptCredential,
+  type AuthMethod,
+  type Credential,
+} from "../services/credentials.server";
 import { testSftpConnection } from "../services/sftp.server";
+
+const MAX_KEY_LENGTH = 16_384;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -23,7 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     take: 20,
   });
 
-  // The password is never sent back to the browser.
+  // Secrets are never sent back to the browser.
   return {
     exports: exports.map((e) => ({
       id: e.id,
@@ -36,7 +44,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     port: config?.sftpPort ?? 22,
     username: config?.sftpUsername ?? "",
     targetDirectory: config?.targetDirectory ?? "/upload",
-    hasPassword: Boolean(config),
+    authMethod: (config?.authMethod ?? "password") as AuthMethod,
+    hasCredential: Boolean(config),
   };
 };
 
@@ -55,7 +64,11 @@ export const action = async ({
   const host = field("host").trim();
   const port = Number(field("port"));
   const username = field("username").trim();
+  const authMethod: AuthMethod =
+    field("authMethod") === "privateKey" ? "privateKey" : "password";
   const password = field("password");
+  const privateKey = field("privateKey").trim();
+  const passphrase = field("passphrase");
   const targetDirectory = field("targetDirectory").trim();
 
   if (!host || !username || !targetDirectory) {
@@ -68,17 +81,28 @@ export const action = async ({
   const existing = await db.merchantConfig.findUnique({
     where: { shop: session.shop },
   });
-  // A blank password field keeps the stored one.
-  const effectivePassword =
-    password ||
-    (existing
-      ? decrypt({
-          encrypted: existing.sftpPasswordEncrypted,
-          iv: existing.sftpIv,
-        })
-      : "");
-  if (!effectivePassword) {
-    return { ok: false, message: "Password is required." };
+  // Blank secret fields keep the stored credential of the same method.
+  const stored = existing ? decryptCredential(existing) : undefined;
+  let credential: Credential | undefined;
+  if (authMethod === "password") {
+    credential = password
+      ? { method: "password", password }
+      : stored?.method === "password"
+        ? stored
+        : undefined;
+    if (!credential) return { ok: false, message: "Password is required." };
+  } else if (privateKey) {
+    if (privateKey.length > MAX_KEY_LENGTH || !privateKey.includes("PRIVATE KEY")) {
+      return { ok: false, message: "Paste a valid private key (PEM format)." };
+    }
+    credential = {
+      method: "privateKey",
+      privateKey: `${privateKey}\n`,
+      passphrase: passphrase || undefined,
+    };
+  } else {
+    credential = stored?.method === "privateKey" ? stored : undefined;
+    if (!credential) return { ok: false, message: "Private key is required." };
   }
 
   if (intent === "test") {
@@ -86,8 +110,8 @@ export const action = async ({
       host,
       port,
       username,
-      password: effectivePassword,
       targetDirectory,
+      ...credentialToAuth(credential),
     });
     return result.ok
       ? { ok: true, message: "Connection successful." }
@@ -95,14 +119,12 @@ export const action = async ({
   }
 
   if (intent === "save") {
-    const { encrypted, iv } = encrypt(effectivePassword);
     const data = {
       sftpHost: host,
       sftpPort: port,
       sftpUsername: username,
-      sftpPasswordEncrypted: encrypted,
-      sftpIv: iv,
       targetDirectory,
+      ...encryptCredential(credential),
     };
     await db.merchantConfig.upsert({
       where: { shop: session.shop },
@@ -123,11 +145,18 @@ export default function Index() {
   const [host, setHost] = useState(saved.host);
   const [port, setPort] = useState(String(saved.port));
   const [username, setUsername] = useState(saved.username);
+  const [authMethod, setAuthMethod] = useState<AuthMethod>(saved.authMethod);
   const [password, setPassword] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
+  const [passphrase, setPassphrase] = useState("");
   const [targetDirectory, setTargetDirectory] = useState(saved.targetDirectory);
 
   const busy = fetcher.state !== "idle";
   const submittedIntent = fetcher.formData?.get("intent");
+  const keepHint = (method: AuthMethod) =>
+    saved.hasCredential && saved.authMethod === method
+      ? "Leave blank to keep the saved value"
+      : "";
 
   useEffect(() => {
     if (fetcher.data?.ok) shopify.toast.show(fetcher.data.message);
@@ -135,7 +164,17 @@ export default function Index() {
 
   const submit = (intent: "test" | "save") =>
     fetcher.submit(
-      { intent, host, port, username, password, targetDirectory },
+      {
+        intent,
+        host,
+        port,
+        username,
+        authMethod,
+        password,
+        privateKey,
+        passphrase,
+        targetDirectory,
+      },
       { method: "POST" },
     );
 
@@ -164,14 +203,37 @@ export default function Index() {
             value={username}
             onInput={(e) => setUsername(e.currentTarget.value)}
           />
-          <s-password-field
-            label="Password"
-            value={password}
-            details={
-              saved.hasPassword ? "Leave blank to keep the saved password" : ""
-            }
-            onInput={(e) => setPassword(e.currentTarget.value)}
-          />
+          <s-select
+            label="Authentication"
+            value={authMethod}
+            onChange={(e) => setAuthMethod(e.currentTarget.value as AuthMethod)}
+          >
+            <s-option value="password">Password</s-option>
+            <s-option value="privateKey">Private key</s-option>
+          </s-select>
+          {authMethod === "password" ? (
+            <s-password-field
+              label="Password"
+              value={password}
+              details={keepHint("password")}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+            />
+          ) : (
+            <>
+              <s-text-area
+                label="Private key"
+                rows={6}
+                value={privateKey}
+                details={keepHint("privateKey")}
+                onInput={(e) => setPrivateKey(e.currentTarget.value)}
+              />
+              <s-password-field
+                label="Key passphrase (optional)"
+                value={passphrase}
+                onInput={(e) => setPassphrase(e.currentTarget.value)}
+              />
+            </>
+          )}
           <s-text-field
             label="Target path"
             value={targetDirectory}

@@ -7,7 +7,10 @@ export interface SftpConfig {
   host: string;
   port: number;
   username: string;
-  password: string;
+  /** Set either password or privateKey. */
+  password?: string;
+  privateKey?: string;
+  passphrase?: string;
   targetDirectory: string;
 }
 
@@ -69,6 +72,8 @@ async function withClient<T>(
       port: config.port,
       username: config.username,
       password: config.password,
+      privateKey: config.privateKey,
+      passphrase: config.passphrase,
       readyTimeout: READY_TIMEOUT_MS,
     });
     return await fn(client);

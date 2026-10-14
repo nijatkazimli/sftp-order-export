@@ -14,36 +14,39 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
 
 model MerchantConfig {
-  id                    String   @id @default(cuid())
-  shop                  String   @unique
-  sftpHost              String
-  sftpPort              Int      @default(22)
-  sftpUsername          String
-  sftpPasswordEncrypted String
-  sftpIv                String
-  targetDirectory       String   @default("/upload")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  shop                    String   @unique
+  sftpHost                String
+  sftpPort                Int      @default(22)
+  sftpUsername            String
+  authMethod              String   @default("password")
+  sftpPasswordEncrypted   String?
+  sftpIv                  String?
+  sftpPrivateKeyEncrypted String?
+  sftpKeyIv               String?
+  targetDirectory         String   @default("/upload")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model ExportLog {
