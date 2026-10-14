@@ -57,5 +57,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ["@shopify/app-bridge-react"],
+    // ssh2 has optional native .node addons that esbuild can't bundle.
+    exclude: ["ssh2", "ssh2-sftp-client", "cpu-features"],
+  },
+  ssr: {
+    external: ["ssh2", "ssh2-sftp-client", "cpu-features"],
   },
 }) satisfies UserConfig;
