@@ -31,8 +31,9 @@ Prerequisites: Node 22.12 or later, Docker, the [Shopify CLI](https://shopify.de
 1. Install dependencies: `npm install`
 2. Start Postgres:
    ```sh
-   docker run -d --name sftp-export-pg -e POSTGRES_PASSWORD=<choose-a-password> \
-     -e POSTGRES_DB=sftp_export -p 5432:5432 postgres:16-alpine
+   docker run -d --name sftp-export-pg --restart unless-stopped \
+     -e POSTGRES_PASSWORD=<choose-a-password> -e POSTGRES_DB=sftp_export \
+     -p 5432:5432 -v sftp-export-pgdata:/var/lib/postgresql/data postgres:16-alpine
    ```
 3. Start a test SFTP server (user `foo`, upload directory `/upload`, port 2222):
    ```sh
