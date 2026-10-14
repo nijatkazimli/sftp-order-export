@@ -76,6 +76,15 @@ describe("SSRF guard", () => {
     expect((await testSftpConnection(config)).ok).toBe(true);
   });
 
+  it("ignores the dev flag in production", async () => {
+    vi.stubEnv("ALLOW_PRIVATE_SFTP_HOSTS", "true");
+    vi.stubEnv("NODE_ENV", "production");
+    resolvesTo("127.0.0.1");
+    const result = await testSftpConnection(config);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/private or reserved/);
+  });
+
   it("connects to the resolved IP, not the hostname", async () => {
     resolvesTo("93.184.216.34");
     await testSftpConnection(config);

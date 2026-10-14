@@ -25,6 +25,7 @@ import {
   validateFilenameTemplate,
 } from "../services/orderCsv.server";
 import { testSftpConnection } from "../services/sftp.server";
+import { allow } from "../utils/rateLimit.server";
 
 const MAX_KEY_LENGTH = 16_384;
 
@@ -97,7 +98,12 @@ export const action = async ({
     where: { shop: session.shop },
   });
   // Blank secret fields keep the stored credential of the same method.
-  const stored = existing ? decryptCredential(existing) : undefined;
+  let stored: Credential | undefined;
+  try {
+    stored = existing ? decryptCredential(existing) : undefined;
+  } catch {
+    // Unreadable (e.g. key changed): the secret has to be entered again.
+  }
   let credential: Credential | undefined;
   if (authMethod === "password") {
     credential = password
@@ -121,6 +127,12 @@ export const action = async ({
   }
 
   if (intent === "test") {
+    if (!allow(`sftp-test:${session.shop}`)) {
+      return {
+        ok: false,
+        message: "Too many connection attempts. Try again in a minute.",
+      };
+    }
     const result = await testSftpConnection({
       host,
       port,
@@ -147,7 +159,7 @@ export const action = async ({
       targetDirectory,
       filenameTemplate,
       csvColumns: csvColumns === DEFAULT_COLUMN_SPEC ? null : csvColumns || null,
-      ...encryptCredential(credential),
+      ...encryptCredential(credential, session.shop),
     };
     await db.merchantConfig.upsert({
       where: { shop: session.shop },

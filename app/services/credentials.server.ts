@@ -14,9 +14,9 @@ export type Credential =
   | ({ method: "privateKey" } & KeyCredential);
 
 /** Columns to write for a credential; the unused method's columns are cleared. */
-export function encryptCredential(credential: Credential) {
+export function encryptCredential(credential: Credential, shop: string) {
   if (credential.method === "password") {
-    const { encrypted, iv } = encrypt(credential.password);
+    const { encrypted, iv } = encrypt(credential.password, shop);
     return {
       authMethod: "password",
       sftpPasswordEncrypted: encrypted,
@@ -30,6 +30,7 @@ export function encryptCredential(credential: Credential) {
       privateKey: credential.privateKey,
       passphrase: credential.passphrase,
     }),
+    shop,
   );
   return {
     authMethod: "privateKey",
@@ -45,14 +46,20 @@ export function decryptCredential(row: MerchantConfig): Credential | undefined {
   if (row.authMethod === "privateKey") {
     if (!row.sftpPrivateKeyEncrypted || !row.sftpKeyIv) return undefined;
     const key = JSON.parse(
-      decrypt({ encrypted: row.sftpPrivateKeyEncrypted, iv: row.sftpKeyIv }),
+      decrypt(
+        { encrypted: row.sftpPrivateKeyEncrypted, iv: row.sftpKeyIv },
+        row.shop,
+      ),
     ) as KeyCredential;
     return { method: "privateKey", ...key };
   }
   if (!row.sftpPasswordEncrypted || !row.sftpIv) return undefined;
   return {
     method: "password",
-    password: decrypt({ encrypted: row.sftpPasswordEncrypted, iv: row.sftpIv }),
+    password: decrypt(
+      { encrypted: row.sftpPasswordEncrypted, iv: row.sftpIv },
+      row.shop,
+    ),
   };
 }
 

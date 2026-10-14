@@ -7,11 +7,14 @@ import {
   toSftpConfig,
 } from "./credentials.server";
 
+const SHOP = "a.myshopify.com";
+
 beforeEach(() => vi.stubEnv("ENCRYPTION_KEY", "ab".repeat(32)));
 afterEach(() => vi.unstubAllEnvs());
 
-const row = (columns: ReturnType<typeof encryptCredential>) =>
+const row = (columns: ReturnType<typeof encryptCredential>, shop = SHOP) =>
   ({
+    shop,
     sftpHost: "h",
     sftpPort: 22,
     sftpUsername: "u",
@@ -22,7 +25,7 @@ const row = (columns: ReturnType<typeof encryptCredential>) =>
 describe("credentials", () => {
   it("round-trips a password and clears key columns", () => {
     const password = randomUUID();
-    const columns = encryptCredential({ method: "password", password });
+    const columns = encryptCredential({ method: "password", password }, SHOP);
     expect(columns.sftpPrivateKeyEncrypted).toBeNull();
     expect(decryptCredential(row(columns))).toEqual({
       method: "password",
@@ -31,11 +34,10 @@ describe("credentials", () => {
   });
 
   it("round-trips a private key with passphrase and clears password columns", () => {
-    const columns = encryptCredential({
-      method: "privateKey",
-      privateKey: "KEY",
-      passphrase: "pp",
-    });
+    const columns = encryptCredential(
+      { method: "privateKey", privateKey: "KEY", passphrase: "pp" },
+      SHOP,
+    );
     expect(columns.sftpPasswordEncrypted).toBeNull();
     expect(columns.sftpPrivateKeyEncrypted).not.toContain("KEY");
     expect(decryptCredential(row(columns))).toEqual({
@@ -45,9 +47,19 @@ describe("credentials", () => {
     });
   });
 
+  it("refuses a credential copied into another shop's row", () => {
+    const columns = encryptCredential(
+      { method: "password", password: randomUUID() },
+      SHOP,
+    );
+    expect(() => decryptCredential(row(columns, "b.myshopify.com"))).toThrow();
+  });
+
   it("builds an SFTP config with only the relevant secret", () => {
     const config = toSftpConfig(
-      row(encryptCredential({ method: "privateKey", privateKey: "KEY" })),
+      row(
+        encryptCredential({ method: "privateKey", privateKey: "KEY" }, SHOP),
+      ),
     );
     expect(config.privateKey).toBe("KEY");
     expect(config.password).toBeUndefined();
@@ -55,7 +67,7 @@ describe("credentials", () => {
 
   it("returns undefined when the credential columns are empty", () => {
     const empty = row(
-      encryptCredential({ method: "password", password: randomUUID() }),
+      encryptCredential({ method: "password", password: randomUUID() }, SHOP),
     );
     empty.sftpPasswordEncrypted = null;
     expect(decryptCredential(empty)).toBeUndefined();

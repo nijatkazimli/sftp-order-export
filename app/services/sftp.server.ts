@@ -51,7 +51,11 @@ for (const [net, bits] of [
 /** Resolves the host once and returns the IP to connect to, so DNS can't change between check and use. */
 async function resolvePublicAddress(host: string): Promise<string> {
   const addresses = await lookup(host, { all: true, order: "ipv4first" });
-  if (process.env.ALLOW_PRIVATE_SFTP_HOSTS !== "true") {
+  // The dev-only flag must never weaken protection in production.
+  const allowPrivate =
+    process.env.NODE_ENV !== "production" &&
+    process.env.ALLOW_PRIVATE_SFTP_HOSTS === "true";
+  if (!allowPrivate) {
     for (const { address, family } of addresses) {
       if (blocked.check(address, family === 6 ? "ipv6" : "ipv4")) {
         throw new Error("Host resolves to a private or reserved address");
