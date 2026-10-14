@@ -169,7 +169,8 @@ export function parseColumnSpec(
 
 export function validateFilenameTemplate(template: string): string | null {
   if (template.length > 100) return "File name is too long";
-  const tokens: string[] = template.match(/\{[^}]*\}/g) ?? [];
+  // `[^{}]` stops at the next brace, so scanning stays linear on inputs like "{{{{{{".
+  const tokens: string[] = template.match(/\{[^{}]*\}/g) ?? [];
   const unknown = tokens.find((t) => !FILENAME_TOKENS.includes(t.slice(1, -1)));
   if (unknown) return `Unknown placeholder ${unknown}`;
   // Without a per-order value every export would overwrite the same file.

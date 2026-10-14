@@ -67,6 +67,17 @@ describe("validateFilenameTemplate", () => {
   it("rejects unknown placeholders", () => {
     expect(validateFilenameTemplate("{order}-{shop}.csv")).toMatch(/Unknown/);
   });
+
+  it("reads the innermost placeholder when braces are nested", () => {
+    expect(validateFilenameTemplate("{{order}}.csv")).toBeNull();
+    expect(validateFilenameTemplate("{{shop}}-{order}.csv")).toMatch(/Unknown/);
+  });
+
+  it("handles many unclosed braces quickly", () => {
+    const start = performance.now();
+    expect(validateFilenameTemplate("{".repeat(100))).toMatch(/must include/);
+    expect(performance.now() - start).toBeLessThan(50);
+  });
 });
 
 describe("renderFilename", () => {
