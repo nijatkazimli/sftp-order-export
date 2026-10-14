@@ -13,6 +13,7 @@ import {
   credentialToAuth,
   decryptCredential,
   encryptCredential,
+  sameEndpoint,
   type AuthMethod,
   type Credential,
 } from "../services/credentials.server";
@@ -59,6 +60,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     filenameTokens: FILENAME_TOKENS,
     authMethod: (config?.authMethod ?? "password") as AuthMethod,
     hasCredential: Boolean(config),
+    hostKey: config?.sftpHostKey ?? null,
   };
 };
 
@@ -97,10 +99,24 @@ export const action = async ({
   const existing = await db.merchantConfig.findUnique({
     where: { shop: session.shop },
   });
+  // A stored secret is only reused for the endpoint it was saved for, so it
+  // can't be redirected to another server by editing the host.
+  const endpointUnchanged = existing
+    ? sameEndpoint(existing, { host, port, username })
+    : false;
+  const pinnedHostKey = endpointUnchanged
+    ? (existing?.sftpHostKey ?? undefined)
+    : undefined;
+  const secretMissing = (what: string) =>
+    existing && !endpointUnchanged
+      ? `Enter the ${what} again when the host, port or username changes.`
+      : `The ${what} is required.`;
+
   // Blank secret fields keep the stored credential of the same method.
   let stored: Credential | undefined;
   try {
-    stored = existing ? decryptCredential(existing) : undefined;
+    stored =
+      existing && endpointUnchanged ? decryptCredential(existing) : undefined;
   } catch {
     // Unreadable (e.g. key changed): the secret has to be entered again.
   }
@@ -111,7 +127,7 @@ export const action = async ({
       : stored?.method === "password"
         ? stored
         : undefined;
-    if (!credential) return { ok: false, message: "Password is required." };
+    if (!credential) return { ok: false, message: secretMissing("password") };
   } else if (privateKey) {
     if (privateKey.length > MAX_KEY_LENGTH || !privateKey.includes("PRIVATE KEY")) {
       return { ok: false, message: "Paste a valid private key (PEM format)." };
@@ -123,7 +139,7 @@ export const action = async ({
     };
   } else {
     credential = stored?.method === "privateKey" ? stored : undefined;
-    if (!credential) return { ok: false, message: "Private key is required." };
+    if (!credential) return { ok: false, message: secretMissing("private key") };
   }
 
   if (intent === "test") {
@@ -138,8 +154,15 @@ export const action = async ({
       port,
       username,
       targetDirectory,
+      expectedHostKey: pinnedHostKey,
       ...credentialToAuth(credential),
     });
+    if (result.ok && existing && endpointUnchanged && !existing.sftpHostKey && result.hostKey) {
+      await db.merchantConfig.update({
+        where: { shop: session.shop },
+        data: { sftpHostKey: result.hostKey },
+      });
+    }
     return result.ok
       ? { ok: true, message: "Connection successful." }
       : { ok: false, message: `Connection failed: ${result.error}` };
@@ -152,6 +175,20 @@ export const action = async ({
       ("error" in parsedColumns ? parsedColumns.error : null);
     if (formatError) return { ok: false, message: formatError };
 
+    // Saving trusts the key the server presents now. If it can't be reached,
+    // keep the old pin, or pin on the first successful connection.
+    let hostKey = pinnedHostKey ?? null;
+    if (allow(`sftp-test:${session.shop}`)) {
+      const probe = await testSftpConnection({
+        host,
+        port,
+        username,
+        targetDirectory,
+        ...credentialToAuth(credential),
+      });
+      if (probe.ok && probe.hostKey) hostKey = probe.hostKey;
+    }
+
     const data = {
       sftpHost: host,
       sftpPort: port,
@@ -159,6 +196,7 @@ export const action = async ({
       targetDirectory,
       filenameTemplate,
       csvColumns: csvColumns === DEFAULT_COLUMN_SPEC ? null : csvColumns || null,
+      sftpHostKey: hostKey,
       ...encryptCredential(credential, session.shop),
     };
     await db.merchantConfig.upsert({
@@ -166,7 +204,12 @@ export const action = async ({
       create: { shop: session.shop, ...data },
       update: data,
     });
-    return { ok: true, message: "Settings saved." };
+    return {
+      ok: true,
+      message: hostKey
+        ? "Settings saved."
+        : "Settings saved. The server's host key will be trusted on the first successful connection.",
+    };
   }
 
   return { ok: false, message: "Unknown action." };
@@ -293,6 +336,11 @@ export default function Index() {
             details={`One column per line, in order. Add :Header to rename, e.g. sku:Item Code. Available: ${saved.availableColumns.join(", ")}.`}
             onInput={(e) => setCsvColumns(e.currentTarget.value)}
           />
+          <s-paragraph>
+            {saved.hostKey
+              ? `Trusted server key: ${saved.hostKey}`
+              : "The server's host key will be trusted on the first successful connection."}
+          </s-paragraph>
           <s-stack direction="inline" gap="base">
             <s-button
               onClick={() => submit("test")}

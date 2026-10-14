@@ -47,6 +47,7 @@ model MerchantConfig {
   targetDirectory         String   @default("/upload")
   filenameTemplate        String   @default("order-{order}.csv")
   csvColumns              String?
+  sftpHostKey             String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }

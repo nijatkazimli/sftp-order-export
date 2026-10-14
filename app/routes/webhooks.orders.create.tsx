@@ -28,11 +28,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const parsed = parseColumnSpec(config.csvColumns);
     if ("error" in parsed) throw new Error(parsed.error);
-    await uploadCsvToSftp(
+    const hostKey = await uploadCsvToSftp(
       toSftpConfig(config),
       renderFilename(config.filenameTemplate, order),
       orderToCsv(order, parsed.columns),
     );
+    // Trust on first use: remember the key so a changed one is refused later.
+    if (!config.sftpHostKey && hostKey) {
+      await db.merchantConfig
+        .update({ where: { shop }, data: { sftpHostKey: hostKey } })
+        .catch((e) => console.error("Failed to store host key", e));
+    }
     await record("success");
   } catch (error) {
     console.error(`SFTP upload failed for ${shop} order ${order.id}`, error);

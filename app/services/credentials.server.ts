@@ -79,6 +79,19 @@ export function toSftpConfig(row: MerchantConfig): SftpConfig {
     port: row.sftpPort,
     username: row.sftpUsername,
     targetDirectory: row.targetDirectory,
+    expectedHostKey: row.sftpHostKey ?? undefined,
     ...credentialToAuth(credential),
   };
+}
+
+/** A stored secret may only be sent to the endpoint it was saved for. */
+export function sameEndpoint(
+  row: Pick<MerchantConfig, "sftpHost" | "sftpPort" | "sftpUsername">,
+  endpoint: { host: string; port: number; username: string },
+): boolean {
+  return (
+    row.sftpHost === endpoint.host &&
+    row.sftpPort === endpoint.port &&
+    row.sftpUsername === endpoint.username
+  );
 }

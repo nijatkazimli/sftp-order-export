@@ -12,12 +12,19 @@ export interface SftpConfig {
   privateKey?: string;
   passphrase?: string;
   targetDirectory: string;
+  /** `sha256:<hex>` fingerprint the server must present; unset means trust on first use. */
+  expectedHostKey?: string;
 }
 
 export interface SftpTestResult {
   ok: boolean;
   error?: string;
+  /** Fingerprint the server presented. */
+  hostKey?: string;
 }
+
+export const HOST_KEY_CHANGED_MESSAGE =
+  "The server's host key has changed since it was last trusted. If the server was changed or reinstalled, save the settings again to trust the new key.";
 
 const READY_TIMEOUT_MS = 10_000;
 
@@ -68,8 +75,10 @@ async function resolvePublicAddress(host: string): Promise<string> {
 async function withClient<T>(
   config: SftpConfig,
   fn: (client: SftpClient) => Promise<T>,
-): Promise<T> {
+): Promise<{ result: T; hostKey: string }> {
   const client = new SftpClient();
+  let hostKey = "";
+  let mismatch = false;
   try {
     await client.connect({
       host: await resolvePublicAddress(config.host),
@@ -79,8 +88,17 @@ async function withClient<T>(
       privateKey: config.privateKey,
       passphrase: config.passphrase,
       readyTimeout: READY_TIMEOUT_MS,
+      hostHash: "sha256",
+      hostVerifier: (hash: string) => {
+        hostKey = `sha256:${hash}`;
+        mismatch = Boolean(config.expectedHostKey) && hostKey !== config.expectedHostKey;
+        return !mismatch;
+      },
     });
-    return await fn(client);
+    return { result: await fn(client), hostKey };
+  } catch (error) {
+    if (mismatch) throw new Error(HOST_KEY_CHANGED_MESSAGE);
+    throw error;
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -90,7 +108,7 @@ export async function testSftpConnection(
   config: SftpConfig,
 ): Promise<SftpTestResult> {
   try {
-    await withClient(config, async (client) => {
+    const { hostKey } = await withClient(config, async (client) => {
       const type = await client.exists(config.targetDirectory);
       if (type !== "d") {
         throw new Error(
@@ -98,7 +116,7 @@ export async function testSftpConnection(
         );
       }
     });
-    return { ok: true };
+    return { ok: true, hostKey };
   } catch (error) {
     return {
       ok: false,
@@ -107,14 +125,15 @@ export async function testSftpConnection(
   }
 }
 
-/** Throws on failure so callers (e.g. webhooks) can trigger a retry. */
+/** Throws on failure so callers (e.g. webhooks) can trigger a retry. Returns the server's host key fingerprint. */
 export async function uploadCsvToSftp(
   config: SftpConfig,
   filename: string,
   csvContent: string,
-): Promise<void> {
+): Promise<string> {
   const remotePath = posix.join(config.targetDirectory, posix.basename(filename));
-  await withClient(config, (client) =>
+  const { hostKey } = await withClient(config, (client) =>
     client.put(Buffer.from(csvContent, "utf8"), remotePath),
   );
+  return hostKey;
 }

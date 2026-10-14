@@ -95,6 +95,42 @@ describe("SSRF guard", () => {
 });
 
 describe("testSftpConnection", () => {
+  it("returns the host key the server presented", async () => {
+    resolvesTo("93.184.216.34");
+    mocks.connect.mockImplementation(async (opts: { hostVerifier: (h: string) => boolean }) => {
+      opts.hostVerifier("abc123");
+    });
+    expect(await testSftpConnection(config)).toEqual({
+      ok: true,
+      hostKey: "sha256:abc123",
+    });
+  });
+
+  it("accepts a connection whose key matches the pinned one", async () => {
+    resolvesTo("93.184.216.34");
+    mocks.connect.mockImplementation(async (opts: { hostVerifier: (h: string) => boolean }) => {
+      if (!opts.hostVerifier("abc123")) throw new Error("Host denied");
+    });
+    const result = await testSftpConnection({
+      ...config,
+      expectedHostKey: "sha256:abc123",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses a server whose key changed", async () => {
+    resolvesTo("93.184.216.34");
+    mocks.connect.mockImplementation(async (opts: { hostVerifier: (h: string) => boolean }) => {
+      if (!opts.hostVerifier("evil")) throw new Error("Host denied");
+    });
+    const result = await testSftpConnection({
+      ...config,
+      expectedHostKey: "sha256:abc123",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/host key has changed/);
+    expect(mocks.end).toHaveBeenCalled();
+  });
   it("authenticates with a private key and passphrase when given", async () => {
     resolvesTo("93.184.216.34");
     await testSftpConnection({
@@ -134,7 +170,11 @@ describe("testSftpConnection", () => {
 describe("uploadCsvToSftp", () => {
   it("uploads into the target directory and strips path segments from the filename", async () => {
     resolvesTo("93.184.216.34");
-    await uploadCsvToSftp(config, "../../etc/evil.csv", "a,b");
+    mocks.connect.mockImplementation(async (opts: { hostVerifier: (h: string) => boolean }) => {
+      opts.hostVerifier("abc123");
+    });
+    const hostKey = await uploadCsvToSftp(config, "../../etc/evil.csv", "a,b");
+    expect(hostKey).toBe("sha256:abc123");
     expect(mocks.put).toHaveBeenCalledWith(
       Buffer.from("a,b"),
       "/upload/evil.csv",

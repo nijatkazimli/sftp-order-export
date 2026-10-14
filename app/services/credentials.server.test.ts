@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   decryptCredential,
   encryptCredential,
+  sameEndpoint,
   toSftpConfig,
 } from "./credentials.server";
 
@@ -72,5 +73,26 @@ describe("credentials", () => {
     empty.sftpPasswordEncrypted = null;
     expect(decryptCredential(empty)).toBeUndefined();
     expect(() => toSftpConfig(empty)).toThrow(/missing/);
+  });
+
+  it("passes the pinned host key into the SFTP config", () => {
+    const base = row(
+      encryptCredential({ method: "password", password: randomUUID() }, SHOP),
+    );
+    expect(toSftpConfig(base).expectedHostKey).toBeUndefined();
+    expect(
+      toSftpConfig({ ...base, sftpHostKey: "sha256:abc" }).expectedHostKey,
+    ).toBe("sha256:abc");
+  });
+});
+
+describe("sameEndpoint", () => {
+  const saved = { sftpHost: "h", sftpPort: 22, sftpUsername: "u" };
+
+  it("matches only when host, port and username are all unchanged", () => {
+    expect(sameEndpoint(saved, { host: "h", port: 22, username: "u" })).toBe(true);
+    expect(sameEndpoint(saved, { host: "evil", port: 22, username: "u" })).toBe(false);
+    expect(sameEndpoint(saved, { host: "h", port: 2222, username: "u" })).toBe(false);
+    expect(sameEndpoint(saved, { host: "h", port: 22, username: "root" })).toBe(false);
   });
 });
