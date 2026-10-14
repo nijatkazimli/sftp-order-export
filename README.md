@@ -69,6 +69,15 @@ Bash helpers in `scripts/`. The database scripts refuse to run unless `DATABASE_
 | `scripts/db.sh psql\|backup\|restore <file>\|reset` | Open psql, back up to `backups/`, restore, or drop and recreate the local database |
 | `npm run check` | Typecheck, lint and test (`scripts/check.sh --build` also builds) |
 
+### Git hooks
+
+Tracked in `.githooks/`; install them once per clone with `npm run hooks:install` (sets a repo-local `core.hooksPath`; undo with `git config --local --unset core.hooksPath`). Each hook first runs the global hook of the same name, so company-wide checks such as the gitleaks scan still apply. Other global hooks (`commit-msg`, `post-*`) don't run in this repo while the override is active.
+
+| Hook | Checks |
+|---|---|
+| `pre-commit` | Refuses `.env*` (except `.env.example`), `*.dump`, `*.sqlite` and `backups/`; requires a migration when `prisma/schema.prisma` changes and validates it (`SKIP_MIGRATION_CHECK=1` overrides); `bash -n` on staged shell scripts; ESLint on staged TypeScript |
+| `pre-push` | Refuses non-fast-forward pushes to and deletion of `main` (`ALLOW_FORCE_PUSH=1` overrides); runs `scripts/check.sh` (`SKIP_PREPUSH_CHECKS=1` skips) |
+
 ## Environment variables
 
 | Variable | Where | Purpose |

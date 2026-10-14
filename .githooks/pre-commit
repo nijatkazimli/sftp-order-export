@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Fast checks on staged files; the slow ones run in pre-push.
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+run_global_hook pre-commit "$@"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -n "$staged" ] || exit 0
+
+bad=$(echo "$staged" | grep -E '(^|/)\.env($|\.)|\.(dump|sqlite)$|^backups/' | grep -v '\.env\.example$' || true)
+[ -z "$bad" ] || fail "refusing to commit local data or secrets:"$'\n'"$bad"
+
+if echo "$staged" | grep -qx 'prisma/schema.prisma'; then
+  if ! echo "$staged" | grep -q '^prisma/migrations/' && [ "${SKIP_MIGRATION_CHECK:-}" != 1 ]; then
+    fail "prisma/schema.prisma changed without a migration (SKIP_MIGRATION_CHECK=1 to override)"
+  fi
+  npx prisma validate >/dev/null || fail "prisma schema is invalid"
+fi
+
+for f in $(echo "$staged" | grep -E '\.sh$|^\.githooks/' || true); do
+  bash -n "$f" || fail "syntax error in $f"
+done
+
+ts_files=$(echo "$staged" | grep -E '\.(ts|tsx)$' || true)
+if [ -n "$ts_files" ]; then
+  echo "$ts_files" | xargs npx eslint --max-warnings 0 || fail "eslint failed"
+fi

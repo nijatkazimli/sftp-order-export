@@ -21,7 +21,8 @@
     "test": "vitest run",
     "dev:up": "bash scripts/dev-up.sh",
     "dev:down": "bash scripts/dev-down.sh",
-    "check": "bash scripts/check.sh"
+    "check": "bash scripts/check.sh",
+    "hooks:install": "bash scripts/install-hooks.sh"
   },
   "type": "module",
   "engines": {
