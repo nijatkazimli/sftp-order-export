@@ -20,6 +20,15 @@ services:
       # 32 random bytes as 64 hex chars: openssl rand -hex 32
       - key: ENCRYPTION_KEY
         sync: false
+      # Shown on the public /privacy and /terms pages.
+      - key: LEGAL_ENTITY_NAME
+        sync: false
+      - key: SUPPORT_EMAIL
+        sync: false
+      - key: HOSTING_REGION
+        sync: false
+      - key: GOVERNING_LAW
+        sync: false
 
 databases:
   - name: sftp-order-export-db

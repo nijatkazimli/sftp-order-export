@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { toSftpConfig } from "../services/credentials.server";
 import { uploadCsvToSftp } from "../services/sftp.server";
+import { pruneExportLogs } from "../services/retention.server";
 import {
   orderToCsv,
   parseColumnSpec,
@@ -15,6 +16,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const order = payload as unknown as ShopifyOrderPayload;
 
   console.log(`Received ${topic} webhook for ${shop}`);
+  pruneExportLogs(db).catch((e) => console.error("Failed to prune export logs", e));
 
   const config = await db.merchantConfig.findUnique({ where: { shop } });
   if (!config) return new Response();

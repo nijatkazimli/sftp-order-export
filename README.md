@@ -16,7 +16,7 @@ Order data is never stored by the app. Only the SFTP configuration and a small e
 - Password or private key authentication (optional passphrase). Secrets are encrypted at rest with AES-256-GCM.
 - Test connection button that also checks the target directory exists.
 - Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename). The default export keeps the original 19 columns; further columns are opt-in: totals, tax, discounts, shipping price and method, discount codes, payment gateway, note, tags, customer name and phone, billing address, and per-item IDs, variant, vendor, discount, weight and shipping flag. The settings page lists every available column.
-- Export history with failure reasons.
+- Export history with failure reasons, deleted automatically after 90 days.
 - SSRF protection: hosts that resolve to private, loopback or link-local addresses are refused.
 - SSH host key pinning (trust on first use): the first key a server presents is remembered, and a changed key is refused until the settings are saved again. A saved password or key is only reused for the same host, port and username.
 - Shopify access tokens are encrypted at rest, and credentials are bound to their shop so they can't be moved between rows.
@@ -88,6 +88,7 @@ Tracked in `.githooks/`; install them once per clone with `npm run hooks:install
 | `ENCRYPTION_KEY` | all | 64 hex characters (`openssl rand -hex 32`); encrypts SFTP credentials and Shopify tokens |
 | `ENCRYPTION_KEY_PREVIOUS` | during key rotation | The old key, so existing data stays readable until it is re-saved |
 | `ALLOW_PRIVATE_SFTP_HOSTS` | development only | `true` allows `localhost` and private SFTP hosts; ignored when `NODE_ENV=production` |
+| `LEGAL_ENTITY_NAME`, `SUPPORT_EMAIL`, `HOSTING_REGION`, `GOVERNING_LAW` | production | Operator details shown on the public `/privacy` and `/terms` pages; placeholders appear (and a warning is logged) until they are set |
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` | production | Provided by the Shopify CLI during development |
 
 ## Environments and protecting data
@@ -107,6 +108,8 @@ Keep development and production completely separate:
 Some SFTP servers only accept connections from allowlisted IP addresses. Check whether your merchants need a fixed outbound IP before choosing a host.
 
 ## Data handled
+
+The privacy policy and terms are served by the app at `/privacy` and `/terms` (use `<app url>/privacy` as the listing's privacy policy URL). They describe what the code does, so update `app/routes/privacy.tsx`, `app/routes/terms.tsx` and `LEGAL_LAST_UPDATED` in `app/legal.server.ts` whenever data handling changes, and have them reviewed by a lawyer before publishing.
 
 Order name, email, shipping address, phone and line items are read from the webhook payload, written to the CSV and sent to the merchant's SFTP server. They are not persisted. The app requires protected customer data access (name, email, phone, address) in the Partner Dashboard and only requests the `read_orders` scope.
 

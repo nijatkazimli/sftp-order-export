@@ -26,12 +26,14 @@ import {
   validateFilenameTemplate,
 } from "../services/orderCsv.server";
 import { testSftpConnection } from "../services/sftp.server";
+import { pruneExportLogs } from "../services/retention.server";
 import { allow } from "../utils/rateLimit.server";
 
 const MAX_KEY_LENGTH = 16_384;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  pruneExportLogs(db).catch((e) => console.error("Failed to prune export logs", e));
   const config = await db.merchantConfig.findUnique({
     where: { shop: session.shop },
   });
@@ -390,6 +392,17 @@ export default function Index() {
             </s-table-body>
           </s-table>
         )}
+      </s-section>
+
+      <s-section slot="aside" heading="Legal">
+        <s-stack direction="block" gap="base">
+          <s-link href="/privacy" target="_blank">
+            Privacy policy
+          </s-link>
+          <s-link href="/terms" target="_blank">
+            Terms of service
+          </s-link>
+        </s-stack>
       </s-section>
     </s-page>
   );
