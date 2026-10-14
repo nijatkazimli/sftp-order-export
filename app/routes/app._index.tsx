@@ -17,9 +17,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const config = await db.merchantConfig.findUnique({
     where: { shop: session.shop },
   });
+  const exports = await db.exportLog.findMany({
+    where: { shop: session.shop },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
 
   // The password is never sent back to the browser.
   return {
+    exports: exports.map((e) => ({
+      id: e.id,
+      orderName: e.orderName,
+      status: e.status,
+      error: e.error,
+      createdAt: e.createdAt.toISOString(),
+    })),
     host: config?.sftpHost ?? "",
     port: config?.sftpPort ?? 22,
     username: config?.sftpUsername ?? "",
@@ -179,6 +191,37 @@ export default function Index() {
             </s-button>
           </s-stack>
         </s-stack>
+      </s-section>
+
+      <s-section heading="Recent exports">
+        {saved.exports.length === 0 ? (
+          <s-paragraph>No orders exported yet.</s-paragraph>
+        ) : (
+          <s-table>
+            <s-table-header-row>
+              <s-table-header>Order</s-table-header>
+              <s-table-header>Status</s-table-header>
+              <s-table-header>Time</s-table-header>
+              <s-table-header>Error</s-table-header>
+            </s-table-header-row>
+            <s-table-body>
+              {saved.exports.map((e) => (
+                <s-table-row key={e.id}>
+                  <s-table-cell>{e.orderName}</s-table-cell>
+                  <s-table-cell>
+                    <s-badge tone={e.status === "success" ? "success" : "critical"}>
+                      {e.status === "success" ? "Exported" : "Failed"}
+                    </s-badge>
+                  </s-table-cell>
+                  <s-table-cell>
+                    {e.createdAt.slice(0, 16).replace("T", " ")} UTC
+                  </s-table-cell>
+                  <s-table-cell>{e.error ?? ""}</s-table-cell>
+                </s-table-row>
+              ))}
+            </s-table-body>
+          </s-table>
+        )}
       </s-section>
     </s-page>
   );
