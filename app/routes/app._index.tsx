@@ -16,6 +16,14 @@ import {
   type AuthMethod,
   type Credential,
 } from "../services/credentials.server";
+import {
+  COLUMN_KEYS,
+  DEFAULT_COLUMN_SPEC,
+  DEFAULT_FILENAME_TEMPLATE,
+  FILENAME_TOKENS,
+  parseColumnSpec,
+  validateFilenameTemplate,
+} from "../services/orderCsv.server";
 import { testSftpConnection } from "../services/sftp.server";
 
 const MAX_KEY_LENGTH = 16_384;
@@ -44,6 +52,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     port: config?.sftpPort ?? 22,
     username: config?.sftpUsername ?? "",
     targetDirectory: config?.targetDirectory ?? "/upload",
+    filenameTemplate: config?.filenameTemplate ?? DEFAULT_FILENAME_TEMPLATE,
+    csvColumns: config?.csvColumns ?? DEFAULT_COLUMN_SPEC,
+    availableColumns: COLUMN_KEYS,
+    filenameTokens: FILENAME_TOKENS,
     authMethod: (config?.authMethod ?? "password") as AuthMethod,
     hasCredential: Boolean(config),
   };
@@ -70,6 +82,9 @@ export const action = async ({
   const privateKey = field("privateKey").trim();
   const passphrase = field("passphrase");
   const targetDirectory = field("targetDirectory").trim();
+  const filenameTemplate =
+    field("filenameTemplate").trim() || DEFAULT_FILENAME_TEMPLATE;
+  const csvColumns = field("csvColumns").replaceAll("\r\n", "\n").trim();
 
   if (!host || !username || !targetDirectory) {
     return { ok: false, message: "Host, username and target path are required." };
@@ -119,11 +134,19 @@ export const action = async ({
   }
 
   if (intent === "save") {
+    const parsedColumns = parseColumnSpec(csvColumns);
+    const formatError =
+      validateFilenameTemplate(filenameTemplate) ??
+      ("error" in parsedColumns ? parsedColumns.error : null);
+    if (formatError) return { ok: false, message: formatError };
+
     const data = {
       sftpHost: host,
       sftpPort: port,
       sftpUsername: username,
       targetDirectory,
+      filenameTemplate,
+      csvColumns: csvColumns === DEFAULT_COLUMN_SPEC ? null : csvColumns || null,
       ...encryptCredential(credential),
     };
     await db.merchantConfig.upsert({
@@ -150,6 +173,10 @@ export default function Index() {
   const [privateKey, setPrivateKey] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [targetDirectory, setTargetDirectory] = useState(saved.targetDirectory);
+  const [filenameTemplate, setFilenameTemplate] = useState(
+    saved.filenameTemplate,
+  );
+  const [csvColumns, setCsvColumns] = useState(saved.csvColumns);
 
   const busy = fetcher.state !== "idle";
   const submittedIntent = fetcher.formData?.get("intent");
@@ -174,6 +201,8 @@ export default function Index() {
         privateKey,
         passphrase,
         targetDirectory,
+        filenameTemplate,
+        csvColumns,
       },
       { method: "POST" },
     );
@@ -238,6 +267,19 @@ export default function Index() {
             label="Target path"
             value={targetDirectory}
             onInput={(e) => setTargetDirectory(e.currentTarget.value)}
+          />
+          <s-text-field
+            label="File name"
+            value={filenameTemplate}
+            details={`Placeholders: ${saved.filenameTokens.map((t) => `{${t}}`).join(", ")}. Must include {order} or {order_id}.`}
+            onInput={(e) => setFilenameTemplate(e.currentTarget.value)}
+          />
+          <s-text-area
+            label="CSV columns"
+            rows={8}
+            value={csvColumns}
+            details={`One column per line, in order. Add :Header to rename, e.g. sku:Item Code. Available: ${saved.availableColumns.join(", ")}.`}
+            onInput={(e) => setCsvColumns(e.currentTarget.value)}
           />
           <s-stack direction="inline" gap="base">
             <s-button

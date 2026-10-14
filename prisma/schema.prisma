@@ -45,6 +45,8 @@ model MerchantConfig {
   sftpPrivateKeyEncrypted String?
   sftpKeyIv               String?
   targetDirectory         String   @default("/upload")
+  filenameTemplate        String   @default("order-{order}.csv")
+  csvColumns              String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }

@@ -3,7 +3,12 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { toSftpConfig } from "../services/credentials.server";
 import { uploadCsvToSftp } from "../services/sftp.server";
-import { orderToCsv, type ShopifyOrderPayload } from "../services/orderCsv.server";
+import {
+  orderToCsv,
+  parseColumnSpec,
+  renderFilename,
+  type ShopifyOrderPayload,
+} from "../services/orderCsv.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -14,7 +19,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const config = await db.merchantConfig.findUnique({ where: { shop } });
   if (!config) return new Response();
 
-  const filename = `order-${order.name ?? order.id}`.replace(/[^\w.-]/g, "_");
   const orderName = order.name ?? String(order.id);
   const record = (status: string, error?: string) =>
     db.exportLog
@@ -22,10 +26,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .catch((e) => console.error("Failed to write export log", e));
 
   try {
+    const parsed = parseColumnSpec(config.csvColumns);
+    if ("error" in parsed) throw new Error(parsed.error);
     await uploadCsvToSftp(
       toSftpConfig(config),
-      `${filename}.csv`,
-      orderToCsv(order),
+      renderFilename(config.filenameTemplate, order),
+      orderToCsv(order, parsed.columns),
     );
     await record("success");
   } catch (error) {
