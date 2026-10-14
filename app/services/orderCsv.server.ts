@@ -1,16 +1,26 @@
 interface OrderLineItem {
+  id?: number;
   sku?: string | null;
   title?: string | null;
+  variant_title?: string | null;
+  vendor?: string | null;
+  product_id?: number | null;
+  variant_id?: number | null;
   quantity?: number;
   price?: string;
+  total_discount?: string;
+  grams?: number;
+  requires_shipping?: boolean;
 }
 
 interface OrderAddress {
   name?: string | null;
+  company?: string | null;
   address1?: string | null;
   address2?: string | null;
   city?: string | null;
   province?: string | null;
+  province_code?: string | null;
   zip?: string | null;
   country_code?: string | null;
   phone?: string | null;
@@ -22,20 +32,41 @@ export interface ShopifyOrderPayload {
   name?: string;
   created_at?: string;
   email?: string | null;
+  phone?: string | null;
   currency?: string;
   total_price?: string;
+  subtotal_price?: string;
+  total_tax?: string;
+  total_discounts?: string;
+  total_shipping_price_set?: { shop_money?: { amount?: string } } | null;
   financial_status?: string | null;
+  fulfillment_status?: string | null;
+  note?: string | null;
+  tags?: string | null;
+  payment_gateway_names?: string[];
+  discount_codes?: { code?: string }[];
+  shipping_lines?: { title?: string | null }[];
+  customer?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+  } | null;
   shipping_address?: OrderAddress | null;
+  billing_address?: OrderAddress | null;
   line_items?: OrderLineItem[];
 }
 
 interface Row {
   order: ShopifyOrderPayload;
   ship: OrderAddress;
+  bill: OrderAddress;
   item: OrderLineItem;
 }
 
-type Cell = string | number | null | undefined;
+type Cell = string | number | boolean | null | undefined;
+
+const joined = (values: (string | null | undefined)[], separator: string) =>
+  values.filter(Boolean).join(separator) || undefined;
 
 const COLUMNS = {
   order_id: ({ order }) => order.id,
@@ -57,11 +88,54 @@ const COLUMNS = {
   item_title: ({ item }) => item.title,
   quantity: ({ item }) => item.quantity,
   unit_price: ({ item }) => item.price,
+
+  // Opt-in columns: not part of the default export.
+  subtotal_price: ({ order }) => order.subtotal_price,
+  total_tax: ({ order }) => order.total_tax,
+  total_discounts: ({ order }) => order.total_discounts,
+  shipping_price: ({ order }) =>
+    order.total_shipping_price_set?.shop_money?.amount,
+  shipping_method: ({ order }) => order.shipping_lines?.[0]?.title,
+  discount_codes: ({ order }) =>
+    joined(order.discount_codes?.map((d) => d.code) ?? [], "; "),
+  payment_gateway: ({ order }) =>
+    joined(order.payment_gateway_names ?? [], "; "),
+  fulfillment_status: ({ order }) => order.fulfillment_status,
+  note: ({ order }) => order.note,
+  tags: ({ order }) => order.tags,
+  customer_name: ({ order }) =>
+    joined([order.customer?.first_name, order.customer?.last_name], " "),
+  customer_phone: ({ order }) => order.customer?.phone ?? order.phone,
+  ship_company: ({ ship }) => ship.company,
+  ship_province_code: ({ ship }) => ship.province_code,
+  billing_name: ({ bill }) => bill.name,
+  billing_company: ({ bill }) => bill.company,
+  billing_address1: ({ bill }) => bill.address1,
+  billing_address2: ({ bill }) => bill.address2,
+  billing_city: ({ bill }) => bill.city,
+  billing_province: ({ bill }) => bill.province,
+  billing_zip: ({ bill }) => bill.zip,
+  billing_country: ({ bill }) => bill.country_code,
+  billing_phone: ({ bill }) => bill.phone,
+  line_item_id: ({ item }) => item.id,
+  product_id: ({ item }) => item.product_id,
+  variant_id: ({ item }) => item.variant_id,
+  variant_title: ({ item }) => item.variant_title,
+  vendor: ({ item }) => item.vendor,
+  item_discount: ({ item }) => item.total_discount,
+  grams: ({ item }) => item.grams,
+  requires_shipping: ({ item }) => item.requires_shipping,
 } satisfies Record<string, (row: Row) => Cell>;
 
 export type ColumnKey = keyof typeof COLUMNS;
 export const COLUMN_KEYS = Object.keys(COLUMNS) as ColumnKey[];
-export const DEFAULT_COLUMN_SPEC = COLUMN_KEYS.join("\n");
+
+/** Used when a shop hasn't chosen columns; kept stable so existing exports never change shape. */
+export const DEFAULT_COLUMN_KEYS = COLUMN_KEYS.slice(
+  0,
+  COLUMN_KEYS.indexOf("subtotal_price"),
+);
+export const DEFAULT_COLUMN_SPEC = DEFAULT_COLUMN_KEYS.join("\n");
 
 export interface ColumnConfig {
   key: ColumnKey;
@@ -74,7 +148,7 @@ export const FILENAME_TOKENS = ["order", "order_id", "date", "datetime"];
 const isColumnKey = (key: string): key is ColumnKey =>
   Object.hasOwn(COLUMNS, key);
 
-/** One column per line: `key` or `key:Header`. Blank input means all columns. */
+/** One column per line: `key` or `key:Header`. Blank input means the default columns. */
 export function parseColumnSpec(
   spec: string | null | undefined,
 ): { columns: ColumnConfig[] } | { error: string } {
@@ -132,7 +206,7 @@ function escapeCell(value: Cell): string {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-const DEFAULT_COLUMNS: ColumnConfig[] = COLUMN_KEYS.map((key) => ({
+const DEFAULT_COLUMNS: ColumnConfig[] = DEFAULT_COLUMN_KEYS.map((key) => ({
   key,
   header: key,
 }));
@@ -143,11 +217,12 @@ export function orderToCsv(
   columns: ColumnConfig[] = DEFAULT_COLUMNS,
 ): string {
   const ship = order.shipping_address ?? {};
+  const bill = order.billing_address ?? {};
   const items = order.line_items?.length ? order.line_items : [{}];
 
   const rows = items.map((item: OrderLineItem) =>
     columns
-      .map(({ key }) => escapeCell(COLUMNS[key]({ order, ship, item })))
+      .map(({ key }) => escapeCell(COLUMNS[key]({ order, ship, bill, item })))
       .join(","),
   );
 

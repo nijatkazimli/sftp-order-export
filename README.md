@@ -15,7 +15,7 @@ Order data is never stored by the app. Only the SFTP configuration and a small e
 
 - Password or private key authentication (optional passphrase). Secrets are encrypted at rest with AES-256-GCM.
 - Test connection button that also checks the target directory exists.
-- Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename).
+- Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename). The default export keeps the original 19 columns; further columns are opt-in: totals, tax, discounts, shipping price and method, discount codes, payment gateway, note, tags, customer name and phone, billing address, and per-item IDs, variant, vendor, discount, weight and shipping flag. The settings page lists every available column.
 - Export history with failure reasons.
 - SSRF protection: hosts that resolve to private, loopback or link-local addresses are refused.
 - SSH host key pinning (trust on first use): the first key a server presents is remembered, and a changed key is refused until the settings are saved again. A saved password or key is only reused for the same host, port and username.
