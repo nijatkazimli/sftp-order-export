@@ -23,6 +23,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@react-router/*"
         update-types: ["version-update:semver-major"]
+      # v7 adds React Compiler rules that flag existing code; adopt deliberately.
+      - dependency-name: "eslint-plugin-react-hooks"
+        update-types: ["version-update:semver-major"]
     groups:
       # These must move together; react-router and its packages are pinned to one version.
       react-router:
