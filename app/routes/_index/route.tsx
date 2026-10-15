@@ -30,9 +30,10 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>SFTP Order Export</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Send every new Shopify order to your warehouse or supplier as a CSV
+          file on their SFTP server.
         </p>
         {showForm && (
           <Form className={styles.form} method="post">
@@ -48,18 +49,22 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Automatic exports</strong>. Each new order becomes a CSV file
+            uploaded to your SFTP server as soon as it is created.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Your format</strong>. Choose the columns, their order and
+            names, and how files are named.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Secure by design</strong>. Credentials are encrypted, server
+            keys are pinned, and order data is never stored.
           </li>
         </ul>
+        <p className={styles.legal}>
+          <a href="/privacy">Privacy policy</a> ·{" "}
+          <a href="/terms">Terms of service</a>
+        </p>
       </div>
     </div>
   );
