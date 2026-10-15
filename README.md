@@ -109,7 +109,7 @@ Keep development and production completely separate:
 
 ## Deployment
 
-`render.yaml` is a Render Blueprint for a Docker web service and a private Postgres database. Create a Blueprint from the repo, then set `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` and `ENCRYPTION_KEY` in the dashboard. The container runs `prisma migrate deploy` on start. After the first deploy, update `application_url` and `redirect_urls` in the production `shopify.app*.toml` and run `shopify app deploy`.
+`render.yaml` is a Render Blueprint for a Docker web service and a private Postgres database. Create a Blueprint from the repo, then set `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` and `ENCRYPTION_KEY` in the dashboard. The container runs `prisma migrate deploy` on start. `SHOPIFY_APP_URL` is also read at build time: `react-router.config.ts` allows that host as a form-post origin, because TLS ends at Render's proxy and the server only sees `http`. Set it before the first deploy and redeploy after changing it, or every save and connection test is rejected as cross-origin (the build prints a warning when it is missing). After the first deploy, update `application_url` and `redirect_urls` in the production `shopify.app*.toml` and run `shopify app deploy`.
 
 Some SFTP servers only accept connections from allowlisted IP addresses. Check whether your merchants need a fixed outbound IP before choosing a host.
 
