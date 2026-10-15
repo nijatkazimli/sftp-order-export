@@ -94,10 +94,10 @@ export default function Terms() {
       <h2>5. Availability</h2>
       <p>
         We work to keep the App available but do not promise uninterrupted
-        service. When an upload fails, Shopify retries the delivery for a
-        limited time, and failures appear in your export history. We do not
-        guarantee that a file will be delivered, accepted or processed by
-        your SFTP server or any third party.
+        service. When an upload fails, the App retries automatically for up to
+        {c.retryDays} days, and the outcome appears in your export history. We
+        do not guarantee that a file will be delivered, accepted or processed
+        by your SFTP server or any third party.
       </p>
 
       <h2>6. Fees</h2>

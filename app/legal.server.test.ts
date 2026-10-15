@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { legalConfig, LEGAL_LAST_UPDATED } from "./legal.server";
-import { EXPORT_LOG_RETENTION_DAYS } from "./services/retention.server";
+import { EXPORT_HISTORY_RETENTION_DAYS, RETRY_WINDOW_MS } from "./services/exportQueue.constants";
 
 describe("legalConfig", () => {
   it("reads operator details from the environment", () => {
@@ -19,10 +19,11 @@ describe("legalConfig", () => {
     });
   });
 
-  it("ties the stated retention period to the code that enforces it", () => {
-    expect(legalConfig({} as NodeJS.ProcessEnv).retentionDays).toBe(
-      EXPORT_LOG_RETENTION_DAYS,
-    );
+  it("ties the stated retention periods to the code that enforces them", () => {
+    const config = legalConfig({} as NodeJS.ProcessEnv);
+    expect(config.retentionDays).toBe(EXPORT_HISTORY_RETENTION_DAYS);
+    expect(config.retryDays).toBe(2);
+    expect(RETRY_WINDOW_MS).toBeLessThanOrEqual(config.retryDays * 24 * 60 * 60 * 1000);
   });
 
   it("shows visible placeholders and warns in production when settings are missing", () => {

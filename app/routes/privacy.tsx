@@ -50,16 +50,18 @@ export default function Privacy() {
         </li>
       </ul>
 
-      <h3>Processed but not stored</h3>
+      <h3>Held until delivered</h3>
       <p>
-        When an order is created, Shopify sends us the order details. The App
-        reads only the fields the merchant selected for the CSV. Depending on
-        that selection this can include the customer’s name, email address,
-        phone number, shipping and billing addresses, items, totals, notes and
-        tags. The CSV is built in memory and uploaded to the merchant’s SFTP
-        server. We do not keep a copy. Our server logs may record the store
-        domain, order ID and technical error messages, but not the order
-        contents.
+        When an order is created or paid, Shopify sends us the order details.
+        The App builds the CSV from only the fields the merchant selected.
+        Depending on that selection this can include the customer’s name,
+        email address, phone number, shipping and billing addresses, items,
+        totals, notes and tags. The finished file is stored encrypted so it can
+        be uploaded to the merchant’s SFTP server, and it is deleted as soon as
+        it has been delivered. If the server cannot be reached we retry for up
+        to {c.retryDays} days and then delete the file. We do not keep a copy
+        after that. Our server logs may record the store domain, order ID and
+        technical error messages, but not the order contents.
       </p>
 
       <h3>What we do not do</h3>
@@ -139,8 +141,8 @@ export default function Privacy() {
           data for a short time, no longer than 7 days.
         </li>
         <li>
-          Order contents are not retained by the App after the file has been
-          sent.
+          A file waiting for delivery is deleted as soon as it is delivered, or
+          after at most {c.retryDays} days if delivery keeps failing.
         </li>
       </ul>
 
@@ -153,9 +155,11 @@ export default function Privacy() {
         the merchant they bought from, who controls their order data; we act
         on the merchant’s instructions and on the data requests Shopify
         forwards to us (customer data requests, customer redaction and store
-        redaction). Because the App does not keep customer order data, the
-        only related record is the order number in the export history, which
-        is deleted with the store’s data.
+        redaction). When a customer redaction request names orders whose files
+        are still waiting for delivery, we delete those files. Because the App
+        does not keep customer order data after delivery, the only other
+        related record is the order number in the export history, which is
+        deleted with the store’s data.
       </p>
       <p>
         Our legal bases are performing our contract with the merchant and our

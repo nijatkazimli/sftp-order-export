@@ -26,18 +26,25 @@ import {
   validateFilenameTemplate,
 } from "../services/orderCsv.server";
 import { testSftpConnection } from "../services/sftp.server";
-import { pruneExportLogs } from "../services/retention.server";
+import { pruneExportJobs } from "../services/retention.server";
+import type { ExportTrigger } from "../services/exportQueue.constants";
 import { allow } from "../utils/rateLimit.server";
 
 const MAX_KEY_LENGTH = 16_384;
 
+function exportStatus(status: string, attempts: number): [tone: "success" | "warning" | "critical", label: string] {
+  if (status === "success") return ["success", "Exported"];
+  if (status === "pending") return ["warning", attempts ? "Retrying" : "Queued"];
+  return ["critical", "Failed"];
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  pruneExportLogs(db).catch((e) => console.error("Failed to prune export logs", e));
+  pruneExportJobs(db).catch((e) => console.error("Failed to prune export jobs", e));
   const config = await db.merchantConfig.findUnique({
     where: { shop: session.shop },
   });
-  const exports = await db.exportLog.findMany({
+  const exports = await db.exportJob.findMany({
     where: { shop: session.shop },
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -49,7 +56,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       id: e.id,
       orderName: e.orderName,
       status: e.status,
-      error: e.error,
+      attempts: e.attempts,
+      error: e.lastError,
       createdAt: e.createdAt.toISOString(),
     })),
     host: config?.sftpHost ?? "",
@@ -57,6 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     username: config?.sftpUsername ?? "",
     targetDirectory: config?.targetDirectory ?? "/upload",
     filenameTemplate: config?.filenameTemplate ?? DEFAULT_FILENAME_TEMPLATE,
+    exportTrigger: (config?.exportTrigger ?? "created") as ExportTrigger,
     csvColumns: config?.csvColumns ?? DEFAULT_COLUMN_SPEC,
     availableColumns: COLUMN_KEYS,
     filenameTokens: FILENAME_TOKENS,
@@ -89,6 +98,8 @@ export const action = async ({
   const targetDirectory = field("targetDirectory").trim();
   const filenameTemplate =
     field("filenameTemplate").trim() || DEFAULT_FILENAME_TEMPLATE;
+  const exportTrigger: ExportTrigger =
+    field("exportTrigger") === "paid" ? "paid" : "created";
   const csvColumns = field("csvColumns").replaceAll("\r\n", "\n").trim();
 
   if (!host || !username || !targetDirectory) {
@@ -197,6 +208,7 @@ export const action = async ({
       sftpUsername: username,
       targetDirectory,
       filenameTemplate,
+      exportTrigger,
       csvColumns: csvColumns === DEFAULT_COLUMN_SPEC ? null : csvColumns || null,
       sftpHostKey: hostKey,
       ...encryptCredential(credential, session.shop),
@@ -234,6 +246,9 @@ export default function Index() {
     saved.filenameTemplate,
   );
   const [csvColumns, setCsvColumns] = useState(saved.csvColumns);
+  const [exportTrigger, setExportTrigger] = useState<ExportTrigger>(
+    saved.exportTrigger,
+  );
 
   const busy = fetcher.state !== "idle";
   const submittedIntent = fetcher.formData?.get("intent");
@@ -259,6 +274,7 @@ export default function Index() {
         passphrase,
         targetDirectory,
         filenameTemplate,
+        exportTrigger,
         csvColumns,
       },
       { method: "POST" },
@@ -325,6 +341,15 @@ export default function Index() {
             value={targetDirectory}
             onInput={(e) => setTargetDirectory(e.currentTarget.value)}
           />
+          <s-select
+            label="Export orders"
+            value={exportTrigger}
+            details="Cash-on-delivery and bank-transfer orders are not paid when they are created. Choose “paid” to export an order only once payment is received."
+            onChange={(e) => setExportTrigger(e.currentTarget.value as ExportTrigger)}
+          >
+            <s-option value="created">When an order is created</s-option>
+            <s-option value="paid">When an order is paid</s-option>
+          </s-select>
           <s-text-field
             label="File name"
             value={filenameTemplate}
@@ -372,23 +397,24 @@ export default function Index() {
               <s-table-header>Order</s-table-header>
               <s-table-header>Status</s-table-header>
               <s-table-header>Time</s-table-header>
-              <s-table-header>Error</s-table-header>
+              <s-table-header>Details</s-table-header>
             </s-table-header-row>
             <s-table-body>
-              {saved.exports.map((e) => (
-                <s-table-row key={e.id}>
-                  <s-table-cell>{e.orderName}</s-table-cell>
-                  <s-table-cell>
-                    <s-badge tone={e.status === "success" ? "success" : "critical"}>
-                      {e.status === "success" ? "Exported" : "Failed"}
-                    </s-badge>
-                  </s-table-cell>
-                  <s-table-cell>
-                    {e.createdAt.slice(0, 16).replace("T", " ")} UTC
-                  </s-table-cell>
-                  <s-table-cell>{e.error ?? ""}</s-table-cell>
-                </s-table-row>
-              ))}
+              {saved.exports.map((e) => {
+                const [tone, label] = exportStatus(e.status, e.attempts);
+                return (
+                  <s-table-row key={e.id}>
+                    <s-table-cell>{e.orderName}</s-table-cell>
+                    <s-table-cell>
+                      <s-badge tone={tone}>{label}</s-badge>
+                    </s-table-cell>
+                    <s-table-cell>
+                      {e.createdAt.slice(0, 16).replace("T", " ")} UTC
+                    </s-table-cell>
+                    <s-table-cell>{e.error ?? ""}</s-table-cell>
+                  </s-table-row>
+                );
+              })}
             </s-table-body>
           </s-table>
         )}

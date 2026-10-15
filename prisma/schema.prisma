@@ -48,17 +48,26 @@ model MerchantConfig {
   filenameTemplate        String   @default("order-{order}.csv")
   csvColumns              String?
   sftpHostKey             String?
+  exportTrigger           String   @default("created")
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }
 
-model ExportLog {
-  id        String   @id @default(cuid())
-  shop      String
-  orderName String
-  status    String
-  error     String?
-  createdAt DateTime @default(now())
+model ExportJob {
+  id               String   @id
+  shop             String
+  orderId          String
+  orderName        String
+  status           String
+  attempts         Int      @default(0)
+  nextAttemptAt    DateTime
+  lastError        String?
+  payloadEncrypted String?
+  payloadIv        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
+  @@unique([shop, orderId])
+  @@index([status, nextAttemptAt])
   @@index([shop, createdAt])
 }

@@ -5,17 +5,19 @@ A Shopify embedded app that turns each new order into a CSV file and uploads it 
 ## How it works
 
 1. The merchant enters their SFTP details on the app's settings page and tests the connection.
-2. Shopify sends an `orders/create` webhook for every new order.
-3. The app builds a CSV (one row per line item), names it from the merchant's file name template, and uploads it to the configured directory.
-4. Each export is recorded as Exported or Failed in the "Recent exports" list. A failed upload returns a non-2xx response, so Shopify retries the webhook.
+2. Shopify sends an `orders/create` or `orders/paid` webhook (the merchant chooses which, so unpaid orders can be held back).
+3. The app builds the CSV (one row per line item), names it from the merchant's file name template, stores it encrypted in a queue and replies to Shopify immediately. One export is queued per order, however many times Shopify delivers the webhook.
+4. A background worker uploads the file. A failed upload is retried with increasing delays for up to 2 days, and the file is deleted as soon as it is delivered or retries run out. Each export is shown as Exported, Retrying or Failed in the "Recent exports" list.
 
-Order data is never stored by the app. Only the SFTP configuration and a small export log (order name, status, error) are kept.
+The app keeps no copy of order data after delivery. Only the SFTP configuration and a small export history (order name, status, error) are kept.
 
 ## Features
 
 - Password or private key authentication (optional passphrase). Secrets are encrypted at rest with AES-256-GCM.
 - Test connection button that also checks the target directory exists.
 - Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename). The default export keeps the original 19 columns; further columns are opt-in: totals, tax, discounts, shipping price and method, discount codes, payment gateway, note, tags, customer name and phone, billing address, and per-item IDs, variant, vendor, discount, weight and shipping flag. The settings page lists every available column.
+- Choose when to export: when an order is created or when it is paid.
+- Queued, retried delivery: webhooks are answered at once, and uploads are retried with backoff for up to 2 days (the worker runs inside the app process and resumes after a restart).
 - Export history with failure reasons, deleted automatically after 90 days.
 - SSRF protection: hosts that resolve to private, loopback or link-local addresses are refused.
 - SSH host key pinning (trust on first use): the first key a server presents is remembered, and a changed key is refused until the settings are saved again. A saved password or key is only reused for the same host, port and username.
@@ -111,7 +113,7 @@ Some SFTP servers only accept connections from allowlisted IP addresses. Check w
 
 The privacy policy and terms are served by the app at `/privacy` and `/terms` (use `<app url>/privacy` as the listing's privacy policy URL). They describe what the code does, so update `app/routes/privacy.tsx`, `app/routes/terms.tsx` and `LEGAL_LAST_UPDATED` in `app/legal.server.ts` whenever data handling changes, and have them reviewed by a lawyer before publishing.
 
-Order name, email, shipping address, phone and line items are read from the webhook payload, written to the CSV and sent to the merchant's SFTP server. They are not persisted. The app requires protected customer data access (name, email, phone, address) in the Partner Dashboard and only requests the `read_orders` scope.
+Order name, email, shipping address, phone and line items are read from the webhook payload, written to the CSV and sent to the merchant's SFTP server. The finished file is held encrypted only until it is delivered (at most about 2 days if delivery keeps failing); nothing is kept afterwards. The app requires protected customer data access (name, email, phone, address) in the Partner Dashboard and only requests the `read_orders` scope.
 
 ## Project layout
 

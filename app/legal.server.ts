@@ -1,4 +1,7 @@
-import { EXPORT_LOG_RETENTION_DAYS } from "./services/retention.server";
+import {
+  EXPORT_HISTORY_RETENTION_DAYS,
+  RETRY_WINDOW_DAYS,
+} from "./services/exportQueue.constants";
 
 /** Update when the policy or terms change. */
 export const LEGAL_LAST_UPDATED = "15 October 2026";
@@ -18,7 +21,8 @@ export function legalConfig(env: NodeJS.ProcessEnv = process.env) {
     region: env.HOSTING_REGION || PLACEHOLDERS.region,
     law: env.GOVERNING_LAW || PLACEHOLDERS.law,
     updated: LEGAL_LAST_UPDATED,
-    retentionDays: EXPORT_LOG_RETENTION_DAYS,
+    retentionDays: EXPORT_HISTORY_RETENTION_DAYS,
+    retryDays: RETRY_WINDOW_DAYS,
   };
   const missing = Object.entries(PLACEHOLDERS)
     .filter(([key, value]) => config[key as keyof typeof PLACEHOLDERS] === value)
