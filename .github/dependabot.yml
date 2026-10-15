@@ -29,6 +29,11 @@ updates:
       # ESLint 10 isn't supported by eslint-plugin-react yet; revisit when it is.
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
+      # Keep the types on the Node major that CI and the Dockerfile run.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # These must move together; react-router and its packages are pinned to one version.
       react-router:
