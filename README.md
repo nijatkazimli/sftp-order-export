@@ -22,6 +22,7 @@ The app keeps no copy of order data after delivery. Only the SFTP configuration 
 - Queued, retried delivery: webhooks are answered at once, and uploads are retried with backoff for up to 2 days (the worker runs inside the app process and resumes after a restart).
 - Export history with failure reasons, deleted automatically after 90 days.
 - SSRF protection: hosts that resolve to private, loopback or link-local addresses are refused.
+- Connection tests, test files and saves that probe the server are limited to 10 per minute per shop. The counter lives in the database, so it holds across restarts and several instances. Every SFTP operation (DNS, login and transfer) has an overall 60-second deadline, so a server that stalls can't tie up the worker.
 - SSH host key pinning (trust on first use): the first key a server presents is remembered, and a changed key is refused until the settings are saved again. A saved password or key is only reused for the same host, port and username.
 - Shopify access tokens are encrypted at rest, and credentials are bound to their shop so they can't be moved between rows.
 - Mandatory Shopify compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`).
@@ -57,7 +58,7 @@ Note that `npm run dev` runs `prisma migrate deploy` against whatever `DATABASE_
 | Command | What it does |
 |---|---|
 | `npm run dev` | Start the app through the Shopify CLI with a tunnel |
-| `npm test` | Run the Vitest tests |
+| `npm test` | Run the Vitest tests. Set `TEST_DATABASE_URL` to a migrated Postgres database to also run the rate-limit SQL tests (CI does this) |
 | `npm run typecheck` | Generate route types and run `tsc` |
 | `npm run lint` | Run ESLint |
 | `npm run build` | Production build |
@@ -144,6 +145,10 @@ If `failed` is not 0, the line says which row and why:
 Rotating does not help if the key and a copy of the database were both stolen. In that case also tell merchants to change their SFTP passwords or keys.
 
 If the key is lost for good, stored credentials and tokens are unrecoverable: merchants re-enter their SFTP settings and shops re-authenticate when they next open the app.
+
+### Dependency updates
+
+Dependabot opens weekly pull requests for npm packages, the Docker base image and GitHub Actions (`.github/dependabot.yml`). React Router, Prisma and Shopify packages are grouped so they update together. CI must pass before you merge. Also turn on Dependabot alerts and security updates in the repository's Code security settings, which a file can't do. Merging a base-image or dependency update means redeploying, so check Render has rebuilt the service afterwards.
 
 ## Data handled
 

@@ -243,7 +243,7 @@ async function testConnection(
   shop: string,
   ctx: SubmitContext,
 ): Promise<ActionResult> {
-  if (!allow(`sftp-test:${shop}`)) return fail(RATE_LIMITED);
+  if (!(await allow(db, `sftp-test:${shop}`))) return fail(RATE_LIMITED);
   const result = await testSftpConnection({
     ...connectionOf(ctx),
     expectedHostKey: ctx.pinnedHostKey,
@@ -254,9 +254,13 @@ async function testConnection(
 }
 
 /** Saving trusts the key the server presents now; if it can't be reached, the old pin stays. */
-async function hostKeyToSave(shop: string, ctx: SubmitContext): Promise<string | null> {
+async function hostKeyToSave(
+  db: PrismaClient,
+  shop: string,
+  ctx: SubmitContext,
+): Promise<string | null> {
   const current = ctx.pinnedHostKey ?? null;
-  if (!allow(`sftp-test:${shop}`)) return current;
+  if (!(await allow(db, `sftp-test:${shop}`))) return current;
   const probe = await testSftpConnection(connectionOf(ctx));
   return probe.ok && probe.hostKey ? probe.hostKey : current;
 }
@@ -270,7 +274,7 @@ async function saveSettings(
   const formatErrors = validateFormat(input);
   if (hasErrors(formatErrors)) return invalid(formatErrors);
 
-  const hostKey = await hostKeyToSave(shop, ctx);
+  const hostKey = await hostKeyToSave(db, shop, ctx);
   const data = {
     sftpHost: input.host,
     sftpPort: input.port,
@@ -330,7 +334,7 @@ async function sendTestFile(
   }
   const built = buildSampleFile(ctx.input);
   if ("errors" in built) return invalid(built.errors);
-  if (!allow(`sftp-test:${shop}`)) return fail(RATE_LIMITED);
+  if (!(await allow(db, `sftp-test:${shop}`))) return fail(RATE_LIMITED);
 
   const { filename, csv } = built.file;
   try {

@@ -71,3 +71,9 @@ model ExportJob {
   @@index([status, nextAttemptAt])
   @@index([shop, createdAt])
 }
+
+model RateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+}

@@ -28,6 +28,9 @@ export const HOST_KEY_CHANGED_MESSAGE =
 
 const READY_TIMEOUT_MS = 10_000;
 
+/** Covers DNS, connect, login and the transfer; the ready timeout alone doesn't stop a server that stalls afterwards. */
+const OPERATION_TIMEOUT_MS = 60_000;
+
 const blocked = new BlockList();
 // Reserved ranges are intentionally hardcoded (NOSONAR: S1313).
 for (const [net, bits] of [
@@ -72,6 +75,17 @@ async function resolvePublicAddress(host: string): Promise<string> {
   return addresses[0].address;
 }
 
+async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`The server did not finish within ${ms / 1000} seconds`)),
+      ms,
+    );
+  });
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+
 async function withClient<T>(
   config: SftpConfig,
   fn: (client: SftpClient) => Promise<T>,
@@ -79,7 +93,7 @@ async function withClient<T>(
   const client = new SftpClient();
   let hostKey = "";
   let mismatch = false;
-  try {
+  const work = (async () => {
     await client.connect({
       host: await resolvePublicAddress(config.host),
       port: config.port,
@@ -96,6 +110,9 @@ async function withClient<T>(
       },
     });
     return { result: await fn(client), hostKey };
+  })();
+  try {
+    return await withDeadline(work, OPERATION_TIMEOUT_MS);
   } catch (error) {
     if (mismatch) throw new Error(HOST_KEY_CHANGED_MESSAGE);
     throw error;

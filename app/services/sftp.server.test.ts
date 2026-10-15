@@ -170,6 +170,21 @@ describe("testSftpConnection", () => {
 });
 
 describe("uploadCsvToSftp", () => {
+  it("gives up and closes the connection when the server stalls after login", async () => {
+    vi.useFakeTimers();
+    try {
+      resolvesTo("203.0.113.10");
+      mocks.put.mockReturnValue(new Promise(() => undefined));
+      const result = uploadCsvToSftp(config, "a.csv", "x");
+      const assertion = expect(result).rejects.toThrow(/did not finish within 60 seconds/);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await assertion;
+      expect(mocks.end).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uploads into the target directory and strips path segments from the filename", async () => {
     resolvesTo("93.184.216.34");
     mocks.connect.mockImplementation(async (opts: { hostVerifier: (h: string) => boolean }) => {

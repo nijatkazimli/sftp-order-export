@@ -7,6 +7,16 @@ vi.mock("./sftp.server", () => ({
   testSftpConnection: sftp.test,
   uploadCsvToSftp: sftp.upload,
 }));
+// Stand-in for the database-backed limiter: 10 attempts per key.
+vi.mock("../utils/rateLimit.server", () => {
+  const hits = new Map<string, number>();
+  return {
+    allow: async (_db: unknown, key: string, limit = 10) => {
+      hits.set(key, (hits.get(key) ?? 0) + 1);
+      return hits.get(key)! <= limit;
+    },
+  };
+});
 
 import { encryptCredential } from "./credentials.server";
 import { DEFAULT_COLUMN_SPEC } from "./orderCsv.server";

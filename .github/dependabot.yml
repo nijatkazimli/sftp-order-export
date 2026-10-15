@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # These must move together; react-router and its packages are pinned to one version.
+      react-router:
+        patterns: ["react-router", "@react-router/*"]
+      prisma:
+        patterns: ["prisma", "@prisma/*"]
+      shopify:
+        patterns: ["@shopify/*"]
+      dev-tools:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

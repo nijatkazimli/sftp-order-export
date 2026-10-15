@@ -7,7 +7,7 @@ let lastPrune = 0;
 
 /**
  * At most once an hour per process: drops files that outlived the retry window (e.g. a stuck
- * job) and deletes expired export history for all shops.
+ * job), deletes expired export history for all shops, and clears old rate-limit rows.
  */
 export async function pruneExportJobs(
   db: PrismaClient,
@@ -29,4 +29,5 @@ export async function pruneExportJobs(
   });
   const cutoff = new Date(now.getTime() - EXPORT_HISTORY_RETENTION_DAYS * DAY_MS);
   await db.exportJob.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  await db.rateLimit.deleteMany({ where: { windowStart: { lt: new Date(now.getTime() - DAY_MS) } } });
 }

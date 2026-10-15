@@ -8,10 +8,15 @@ const DAY = 24 * 60 * 60 * 1000;
 const fakeDb = () => {
   const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+  const rateLimitDelete = vi.fn().mockResolvedValue({ count: 0 });
   return {
-    db: { exportJob: { deleteMany, updateMany } } as unknown as PrismaClient,
+    db: {
+      exportJob: { deleteMany, updateMany },
+      rateLimit: { deleteMany: rateLimitDelete },
+    } as unknown as PrismaClient,
     deleteMany,
     updateMany,
+    rateLimitDelete,
   };
 };
 
@@ -36,6 +41,14 @@ describe("pruneExportJobs", () => {
       payloadEncrypted: null,
       payloadIv: null,
     });
+  });
+
+  it("clears rate-limit rows from older than a day", async () => {
+    const { db, rateLimitDelete } = fakeDb();
+    const now = new Date("2030-09-01T00:00:00Z");
+    await pruneExportJobs(db, now);
+    const cutoff = rateLimitDelete.mock.calls[0][0].where.windowStart.lt as Date;
+    expect(now.getTime() - cutoff.getTime()).toBe(DAY);
   });
 
   it("runs at most once an hour", async () => {
