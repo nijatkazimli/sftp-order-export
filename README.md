@@ -120,7 +120,9 @@ Order name, email, shipping address, phone and line items are read from the webh
 | Path | Contents |
 |---|---|
 | `app/routes/app._index.tsx` | Settings page: loader, action, form, export history |
-| `app/routes/webhooks.orders.create.tsx` | `orders/create` handler |
+| `app/routes/webhooks.orders.create.tsx`, `webhooks.orders.paid.tsx` | Order webhooks; both hand off to `app/services/orderWebhook.server.ts` |
+| `app/services/exportQueue.server.ts` | Queue: enqueue (one export per order), claim, deliver, retry |
+| `app/services/exportWorker.server.ts` | In-process polling loop that runs due jobs |
 | `app/routes/webhooks.compliance.tsx` | Mandatory compliance webhooks |
 | `app/services/sftp.server.ts` | Connection test, upload, SSRF guard |
 | `app/services/credentials.server.ts` | Password and private key encryption helpers |
