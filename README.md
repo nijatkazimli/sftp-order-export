@@ -120,6 +120,7 @@ Runbooks for the production database and `ENCRYPTION_KEY`. Treat the key like a 
 
 - Turn on the database host's automatic backups (on Render, check what your Postgres plan includes) and also take your own dump before every risky migration and key rotation: `pg_dump -Fc "$DATABASE_URL" > backup.dump`.
 - Dumps contain the encrypted SFTP credentials and Shopify tokens. They are only readable with the `ENCRYPTION_KEY` that was current when the dump was taken, so keep the key and the dump in different places, and keep every old key for as long as you keep dumps made under it.
+- The privacy policy promises backups are kept no longer than 7 days, so delete your own dumps within that time.
 - Rehearse a restore before you need one. Restore into a scratch database, never over production first: `pg_restore --clean --if-exists --no-owner -d "$SCRATCH_URL" backup.dump`, then point a local copy of the app at it with the matching key.
 - Orders placed while the database was down or being restored are not exported (Shopify only retries a webhook for a limited time and there is no backfill). After a restore, compare the Orders list in Shopify admin with Recent exports for that window and re-send what is missing by hand.
 - Exports still queued at the time of the dump are delivered once the restored app starts.

@@ -1,5 +1,6 @@
 import db from "../db.server";
 import { processDueJobs } from "./exportQueue.server";
+import { pruneExportJobs } from "./retention.server";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -10,6 +11,7 @@ async function tick() {
   if (running) return;
   running = true;
   try {
+    await pruneExportJobs(db);
     await processDueJobs(db);
   } catch (error) {
     console.error("Export worker error", error);
