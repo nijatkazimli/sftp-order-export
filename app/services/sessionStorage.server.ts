@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Session } from "@shopify/shopify-app-react-router/server";
 import type { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
-import { decrypt, encrypt } from "../utils/crypto.server";
+import { decrypt, encrypt, isCurrentKey } from "../utils/crypto.server";
 
 type Inner = Pick<
   PrismaSessionStorage<PrismaClient>,
@@ -15,17 +15,23 @@ type Inner = Pick<
 
 const PREFIX = "enc:v1:";
 
-function seal(value: string | undefined, sessionId: string) {
+export function seal(value: string | undefined, sessionId: string) {
   if (!value) return value;
   const { encrypted, iv } = encrypt(value, sessionId);
   return `${PREFIX}${iv}:${encrypted}`;
 }
 
 // Values without the prefix are legacy plaintext; they're re-encrypted on the next store.
-function open(value: string | undefined, sessionId: string) {
+export function open(value: string | undefined, sessionId: string) {
   if (!value?.startsWith(PREFIX)) return value;
   const [iv, encrypted] = value.slice(PREFIX.length).split(":");
   return decrypt({ encrypted, iv }, sessionId);
+}
+
+export function sealedWithCurrentKey(value: string, sessionId: string) {
+  if (!value.startsWith(PREFIX)) return false;
+  const [iv, encrypted] = value.slice(PREFIX.length).split(":");
+  return isCurrentKey({ encrypted, iv }, sessionId);
 }
 
 function transform(

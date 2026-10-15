@@ -21,6 +21,7 @@
     "dev:up": "bash scripts/dev-up.sh",
     "dev:down": "bash scripts/dev-down.sh",
     "check": "bash scripts/check.sh",
+    "rotate-key": "esbuild scripts/rotate-key.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=build/rotate-key.mjs && node build/rotate-key.mjs",
     "hooks:install": "bash scripts/install-hooks.sh"
   },
   "type": "module",

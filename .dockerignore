@@ -16,5 +16,6 @@ backups
 .cursor
 .gemini
 .mcp.json
-scripts
+scripts/*
+!scripts/rotate-key.ts
 listing

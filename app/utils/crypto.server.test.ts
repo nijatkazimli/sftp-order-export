@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { decrypt, encrypt } from "./crypto.server";
+import { decrypt, encrypt, isCurrentKey } from "./crypto.server";
 
 const KEY_A = "ab".repeat(32);
 const KEY_B = "cd".repeat(32);
@@ -62,6 +62,15 @@ describe("crypto", () => {
     const fresh = encrypt("again", SHOP);
     vi.stubEnv("ENCRYPTION_KEY_PREVIOUS", "");
     expect(decrypt(fresh, SHOP)).toBe("again");
+  });
+
+  it("tells values on the previous key from values on the current key", () => {
+    const old = encrypt("secret", SHOP);
+    vi.stubEnv("ENCRYPTION_KEY", KEY_B);
+    vi.stubEnv("ENCRYPTION_KEY_PREVIOUS", KEY_A);
+    expect(isCurrentKey(old, SHOP)).toBe(false);
+    expect(isCurrentKey(encrypt("secret", SHOP), SHOP)).toBe(true);
+    expect(isCurrentKey(encrypt("secret", SHOP), "b.myshopify.com")).toBe(false);
   });
 
   it.each(["", "abcd", "zz".repeat(32)])("rejects invalid key %j", (key) => {

@@ -48,14 +48,32 @@ export function encrypt(plaintext: string, aad: string): EncryptedValue {
   };
 }
 
-export function decrypt({ encrypted, iv }: EncryptedValue, aad: string): string {
+/** True if the value is readable with ENCRYPTION_KEY alone, i.e. it needs no rotation. */
+export function isCurrentKey(value: EncryptedValue, aad: string): boolean {
+  try {
+    decryptWith(getKeys().slice(0, 1), value, aad);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function decrypt(value: EncryptedValue, aad: string): string {
+  return decryptWith(getKeys(), value, aad);
+}
+
+function decryptWith(
+  keys: Buffer[],
+  { encrypted, iv }: EncryptedValue,
+  aad: string,
+): string {
   const data = Buffer.from(encrypted, "base64");
   if (data.length < TAG_LENGTH) throw new Error("Ciphertext is too short");
   const body = data.subarray(0, data.length - TAG_LENGTH);
   const tag = data.subarray(data.length - TAG_LENGTH);
 
   let lastError: unknown;
-  for (const key of getKeys()) {
+  for (const key of keys) {
     try {
       const decipher = createDecipheriv(
         ALGORITHM,

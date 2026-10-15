@@ -61,6 +61,7 @@ Note that `npm run dev` runs `prisma migrate deploy` against whatever `DATABASE_
 | `npm run typecheck` | Generate route types and run `tsc` |
 | `npm run lint` | Run ESLint |
 | `npm run build` | Production build |
+| `npm run rotate-key` | Re-encrypt stored data with a new `ENCRYPTION_KEY` (see [Operations](#operations)) |
 | `npx prisma migrate dev --name <name>` | Create and apply a migration locally |
 
 ### Developer scripts
@@ -90,7 +91,7 @@ Tracked in `.githooks/`; install them once per clone with `npm run hooks:install
 |---|---|---|
 | `DATABASE_URL` | all | PostgreSQL connection string |
 | `ENCRYPTION_KEY` | all | 64 hex characters (`openssl rand -hex 32`); encrypts SFTP credentials and Shopify tokens |
-| `ENCRYPTION_KEY_PREVIOUS` | during key rotation | The old key, so existing data stays readable until it is re-saved |
+| `ENCRYPTION_KEY_PREVIOUS` | during key rotation | The old key, so existing data stays readable until `npm run rotate-key` has re-encrypted it |
 | `ALLOW_PRIVATE_SFTP_HOSTS` | development only | `true` allows `localhost` and private SFTP hosts; ignored when `NODE_ENV=production` |
 | `LEGAL_ENTITY_NAME`, `SUPPORT_EMAIL`, `HOSTING_REGION`, `GOVERNING_LAW` | production | Operator details shown on the public `/privacy` and `/terms` pages; placeholders appear (and a warning is logged) until they are set |
 | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`, `SCOPES` | production | Provided by the Shopify CLI during development |
@@ -111,6 +112,38 @@ Keep development and production completely separate:
 
 Some SFTP servers only accept connections from allowlisted IP addresses. Check whether your merchants need a fixed outbound IP before choosing a host.
 
+## Operations
+
+Runbooks for the production database and `ENCRYPTION_KEY`. Treat the key like a password: keep it in a password manager, never in the repo, and use a different one in every environment.
+
+### Backing up and restoring
+
+- Turn on the database host's automatic backups (on Render, check what your Postgres plan includes) and also take your own dump before every risky migration and key rotation: `pg_dump -Fc "$DATABASE_URL" > backup.dump`.
+- Dumps contain the encrypted SFTP credentials and Shopify tokens. They are only readable with the `ENCRYPTION_KEY` that was current when the dump was taken, so keep the key and the dump in different places, and keep every old key for as long as you keep dumps made under it.
+- Rehearse a restore before you need one. Restore into a scratch database, never over production first: `pg_restore --clean --if-exists --no-owner -d "$SCRATCH_URL" backup.dump`, then point a local copy of the app at it with the matching key.
+- Orders placed while the database was down or being restored are not exported (Shopify only retries a webhook for a limited time and there is no backfill). After a restore, compare the Orders list in Shopify admin with Recent exports for that window and re-send what is missing by hand.
+- Exports still queued at the time of the dump are delivered once the restored app starts.
+
+### Rotating ENCRYPTION_KEY
+
+Do this on a schedule, and immediately if the key may have been exposed. The app keeps working throughout.
+
+1. Take a backup (above) and generate a key: `openssl rand -hex 32`. Store it before you use it.
+2. On the web service, set `ENCRYPTION_KEY` to the new key and `ENCRYPTION_KEY_PREVIOUS` to the old one, and redeploy. New writes use the new key; old data is still readable.
+3. Run `npm run rotate-key` in a shell on the service. It re-encrypts SFTP credentials, queued export files and Shopify tokens, and prints `re-encrypted`, `already current` and `failed` counts. It is safe to re-run and to run while the app is serving traffic. Locally, export `DATABASE_URL` and both keys first; a `.env` file never overrides variables that are already set.
+4. Run it again without the old key: `env -u ENCRYPTION_KEY_PREVIOUS npm run rotate-key`. It must report `failed: 0` and exit 0.
+5. Remove `ENCRYPTION_KEY_PREVIOUS` from the service and redeploy. Keep the old key until you no longer keep dumps made under it.
+
+If `failed` is not 0, the line says which row and why:
+
+- `session ...`: the shop's token was unreadable. This only forces a re-login; delete the row or ignore it.
+- `config ...`: the saved SFTP credential is unreadable. The merchant must enter it again on the settings page.
+- `export job ...`: delivery of that one file will fail and show as failed in Recent exports. `changed while rotating, run again` means a write raced the script; just re-run it.
+
+Rotating does not help if the key and a copy of the database were both stolen. In that case also tell merchants to change their SFTP passwords or keys.
+
+If the key is lost for good, stored credentials and tokens are unrecoverable: merchants re-enter their SFTP settings and shops re-authenticate when they next open the app.
+
 ## Data handled
 
 The privacy policy and terms are served by the app at `/privacy` and `/terms` (use `<app url>/privacy` as the listing's privacy policy URL). They describe what the code does, so update `app/routes/privacy.tsx`, `app/routes/terms.tsx` and `LEGAL_LAST_UPDATED` in `app/legal.server.ts` whenever data handling changes, and have them reviewed by a lawyer before publishing.
@@ -130,4 +163,5 @@ Order name, email, shipping address, phone and line items are read from the webh
 | `app/services/credentials.server.ts` | Password and private key encryption helpers |
 | `app/services/orderCsv.server.ts` | CSV columns, file name templates, escaping |
 | `app/utils/crypto.server.ts` | AES-256-GCM encrypt and decrypt |
+| `app/services/rotateKeys.server.ts`, `scripts/rotate-key.ts` | Re-encryption after changing `ENCRYPTION_KEY` |
 | `prisma/` | Schema and migrations |
