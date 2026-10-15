@@ -14,7 +14,9 @@ The app keeps no copy of order data after delivery. Only the SFTP configuration 
 ## Features
 
 - Password or private key authentication (optional passphrase). Secrets are encrypted at rest with AES-256-GCM.
-- Test connection button that also checks the target directory exists.\n- Preview of the exported file (using a made-up order) and a \"Send test file\" button that uploads it to the server. Sending needs an explicit confirmation, because a supplier's automation may process the file as a real order.\n- Field-level validation messages on the settings form.
+- Test connection button that also checks the target directory exists.
+- Preview of the exported file (using a made-up order) and a "Send test file" button that uploads it to the server. Sending needs an explicit confirmation, because a supplier's automation may process the file as a real order.
+- Field-level validation messages on the settings form.
 - Configurable file name (`{order}`, `{order_id}`, `{date}`, `{datetime}`) and CSV columns (choose, reorder and rename). The default export keeps the original 19 columns; further columns are opt-in: totals, tax, discounts, shipping price and method, discount codes, payment gateway, note, tags, customer name and phone, billing address, and per-item IDs, variant, vendor, discount, weight and shipping flag. The settings page lists every available column.
 - Choose when to export: when an order is created or when it is paid.
 - Queued, retried delivery: webhooks are answered at once, and uploads are retried with backoff for up to 2 days (the worker runs inside the app process and resumes after a restart).
