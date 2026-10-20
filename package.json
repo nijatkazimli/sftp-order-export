@@ -1,6 +1,7 @@
 {
   "name": "sftp-order-export",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "build": "react-router build",
     "dev": "shopify app dev",

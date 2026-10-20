@@ -2,6 +2,8 @@
 
 A Shopify embedded app that turns each new order into a CSV file and uploads it to the merchant's own SFTP server, for stores that work with warehouses or dropshippers that still take file drops.
 
+> **Use at your own risk.** This is a spare-time open source project under the [MIT license](LICENSE), provided "as is" with no warranty and no support. If you run it you are the operator: you are responsible for your deployment, for the data it handles and for the legal terms you show your users.
+
 ## How it works
 
 1. The merchant enters their SFTP details on the app's settings page and tests the connection.
@@ -113,6 +115,19 @@ Keep development and production completely separate:
 
 Some SFTP servers only accept connections from allowlisted IP addresses. Check whether your merchants need a fixed outbound IP before choosing a host.
 
+## Self-hosting
+
+The app is not a shared service you can just install: you run your own copy and connect it to your own Shopify app.
+
+1. **Create a Shopify app** in your Partner or Dev Dashboard, then run `shopify app config link` so `shopify.app.toml` points at your app (the `client_id` committed here belongs to the author's app).
+2. **Request protected customer data access** for your app (name, email, phone, address). Shopify has to approve this before order webhooks carry customer details. The app only requests the `read_orders` scope.
+3. **Deploy** the Docker image with a PostgreSQL database (see [Deployment](#deployment)). Set `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` (before the build), a fresh `ENCRYPTION_KEY` and your own legal details. Never reuse a key between environments, and leave `ALLOW_PRIVATE_SFTP_HOSTS` unset.
+4. **Run `shopify app deploy`** to push the webhooks and scopes, then install the app on your store.
+
+The privacy policy and terms pages (`/privacy`, `/terms`) are **templates** that describe what this code does. They show placeholders until you set `LEGAL_ENTITY_NAME`, `SUPPORT_EMAIL`, `HOSTING_REGION` and `GOVERNING_LAW`. Have a lawyer review them for your situation before you offer the app to anyone: whoever operates the app is responsible for them, and for data protection duties such as agreements with the merchants whose data it processes. The `listing/` folder holds the author's own App Store assets and copy and is not part of the app.
+
+Security problems: see [SECURITY.md](SECURITY.md).
+
 ## Operations
 
 Runbooks for the production database and `ENCRYPTION_KEY`. Treat the key like a password: keep it in a password manager, never in the repo, and use a different one in every environment.
@@ -171,3 +186,7 @@ Order name, email, shipping address, phone and line items are read from the webh
 | `app/utils/crypto.server.ts` | AES-256-GCM encrypt and decrypt |
 | `app/services/rotateKeys.server.ts`, `scripts/rotate-key.ts` | Re-encryption after changing `ENCRYPTION_KEY` |
 | `prisma/` | Schema and migrations |
+
+## License
+
+[MIT](LICENSE). Third-party dependencies keep their own licenses. At the time of writing the production dependency tree is almost entirely MIT, Apache-2.0, ISC and BSD, plus two build-time tools used unmodified (`lightningcss`, MPL-2.0, and the `caniuse-lite` data, CC-BY-4.0).
